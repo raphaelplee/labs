@@ -1,4 +1,3 @@
 # Claude Code Configuration
 
-See global config (`~/.claude/CLAUDE.md`) for AI-augmented development setup,
-gstack skills, and superpowers runtime.
+See [AGENTS.md](AGENTS.md) for AI-augmented development setup, skill runtime, and routing.
