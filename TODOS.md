@@ -1,0 +1,107 @@
+# TODOS
+
+Deferred items from the /plan-ceo-review session on 2026-05-14.
+
+---
+
+## P2 — Do soon after Weekend 5
+
+### Kafka Dead Letter Queue (DLQ) for deserialization failures
+
+**What:** Add Kafka DLQ configuration to the `event-driven` module. Events that fail
+deserialization should be routed to a `payments.dlq` topic rather than causing
+indefinite retry loops.
+
+**Why:** Without a DLQ, a malformed event stops all event processing for the consumer
+group. DLQ is standard Kafka production practice. Its absence is an obvious omission
+for any senior engineer reviewing the module.
+
+**Context:** Weekend 2 ships the Kafka consumer without a DLQ. The portfolio demo
+unlikely encounters malformed events, but the pattern's absence signals "never shipped
+a Kafka consumer to production." Implement after the core saga is working.
+
+**Where to start:** `event-driven/src/main/java/.../kafka/` — add `DeadLetterPublisher`
+bean + `errorHandler` in `KafkaListenerContainerFactory` configuration.
+
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 2
+
+---
+
+### ADR directory (`docs/adr/`)
+
+**What:** Create `docs/adr/` with 4-5 Architecture Decision Records:
+- `0001-temporal-over-kafka-streams.md` — why Temporal for saga orchestration
+- `0002-spring-modulith-over-microservices.md` — 2026 modular monolith rationale
+- `0003-kraft-kafka-over-managed.md` — KRaft vs MSK/Confluent for this use case
+- `0004-ec2-first-over-eks.md` — why EC2 baseline before EKS for multicloud
+- `0005-ollama-over-copilot-cli.md` — why Ollama has a stable API; Copilot CLI does not
+
+**Why:** Each ADR converts an implementation decision into an interview talking point
+with a written artifact behind it. "I made this choice because X" is stronger when
+there's a 1-page markdown file in the repo to point to.
+
+**Context:** Deferred from the CEO plan cherry-pick ceremony. Build after the code
+exists so ADRs document proven decisions, not aspirational ones.
+
+**Effort:** S (human ~2-3 hrs / CC ~20 min) | **Priority:** P2 | **Depends on:** Weekend 5 complete
+
+---
+
+## P3 — Nice to have
+
+### GitHub Actions badges + AI metrics badge
+
+**What:** Add to main README:
+1. GitHub Actions CI build status badge (standard `shields.io` from GitHub)
+2. Test coverage badge (JaCoCo report via `jacoco.github.io`)
+3. AI review acceptance rate badge (custom: HTTP endpoint returning current week's
+   rate from `pr_metrics` table, formatted as `shields.io` endpoint badge)
+
+**Why:** Visual credibility signals in 3 seconds before a reviewer reads a line of code.
+
+**Context:** Deferred from cherry-pick ceremony. Requires both the CI pipeline
+(Weekend 4) and the Grafana metrics endpoint (Weekend 5) to be live.
+
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+
+---
+
+### Grafana collection health alert
+
+**What:** Add one Grafana alert rule to the `cicd.raphaellee.de` dashboard:
+- Trigger: `count(collection_status = 'failed') over last 2 hours > 1`
+- Notifies (email or webhook) when the pr_metrics SSH tunnel has been failing
+
+**Why:** Prevents discovering the metrics system is broken during interview prep.
+The `collection_status` column (added in Weekend 5) tracks whether each write
+attempt succeeded, but without an alert you'd only notice failures when reviewing
+the chart and seeing unexplained gaps.
+
+**Context:** Added from /plan-eng-review. Classic "observe the observer" pattern.
+Trivial alongside the Grafana dashboard build.
+
+**Where to start:** Grafana alert rule in the cicd dashboard JSON (one rule, one
+notification channel). Requires `collection_status` column to exist in pr_metrics.
+
+**Effort:** S (human ~15 min / CC ~2 min) | **Priority:** P3 | **Depends on:** Weekend 5 (Grafana dashboard + collection_status column)
+
+---
+
+### HTMX frontend for event-driven (stretch)
+
+**What:** A minimal HTMX frontend at `event-driven.raphaellee.de`:
+- Subscription status page: list active subscriptions
+- Payment event feed: real-time saga state updates via Server-Sent Events
+- Shows the saga state machine executing visually
+
+**Why:** Makes the demo visually real for non-technical stakeholders (CTOs, product
+managers in the interview loop). The core audience (engineers) is fine with curl, but
+a live visual makes the "here's my saga working" moment stronger.
+
+**Context:** Deferred from Section 11 review. API-only is correct for Weekends 1-5.
+HTMX is a 1-weekend addition after the core is solid.
+
+**Where to start:** `event-driven/src/main/resources/templates/` — add Thymeleaf +
+HTMX dependency; Server-Sent Events endpoint at `/events/stream`.
+
+**Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** Weekend 5 complete
