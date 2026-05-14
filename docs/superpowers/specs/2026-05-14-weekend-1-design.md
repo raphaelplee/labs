@@ -192,7 +192,7 @@ Docker socket mount (not Docker-in-Docker): host socket is Testcontainers' offic
 - **Hetzner Cloud CCX23** — 4 vCPU, 8 GB RAM, Frankfurt (eu-central) region
 - Provision via Hetzner Cloud UI (manual — Terraform is Weekend 6/multicloud)
 - Upload SSH public key at creation time
-- Create `hetzner-metrics` OS user now — limited SSH user for Weekend 5 metrics writes (`INSERT` on `pr_metrics` only)
+- Create a dedicated limited OS user now — used in Weekend 5 for metrics writes via SSH (`INSERT` on `pr_metrics` only)
 
 Post-provision:
 ```bash
