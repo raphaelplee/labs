@@ -92,10 +92,15 @@ The four deferred modules get placeholder stubs now; decisions filled in when bu
 
 **Stack:** Java 25 · Spring Boot 4.x latest stable · Jakarta EE 11
 
-**Compatibility check before committing** (one-time manual verification):
-- Temporal Java SDK — confirm Spring Boot 4 / Jakarta EE 11 support
-- `spring-kafka` — confirm Spring Boot 4 compat
-- Flyway — confirm Jakarta EE 11 namespace
+**Compatibility gate — verify before committing pom.xml (PR 3):**
+
+| Dependency | Check | Pass condition |
+|------------|-------|----------------|
+| Temporal Java SDK | Check [temporal.io releases](https://github.com/temporalio/sdk-java/releases) for Spring Boot 4 / Jakarta EE 11 mention | Release notes or issues confirm `jakarta.*` namespace |
+| `spring-kafka` | Check [Spring for Apache Kafka releases](https://github.com/spring-projects/spring-kafka/releases) | Version compatible with Spring Boot 4 listed |
+| Flyway | Check [Flyway release notes](https://github.com/flyway/flyway/releases) for Flyway 10.x | Jakarta EE 11 confirmed |
+
+If any dependency is incompatible: open a GitHub issue in this repo tracking the blocker, pin the last compatible Spring Boot version instead, and note the deviation in `event-driven/README.md`. Do NOT start Weekend 2 coding without passing this gate.
 
 Root `pom.xml` structure:
 ```xml
@@ -201,7 +206,7 @@ systemctl enable docker
 ```yaml
 services:
   caddy:
-    image: caddy:latest
+    image: caddy:2
     restart: always
     ports: ["80:80", "443:443", "443:443/udp"]
     volumes:
@@ -216,6 +221,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   caddy_data:
@@ -228,7 +238,34 @@ volumes:
 POSTGRES_PASSWORD=changeme
 ```
 
+Root `.gitignore` (committed in PR 6):
+```
+# Build output
+target/
+*.class
+
+# Secrets — never commit
+compose/.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+```
+
 ### Caddyfile
+
+**PR 6 — stub Caddyfile (no ACME, safe to run before DNS propagates):**
+
+```
+:80 {
+  respond "coming soon" 200
+}
+```
+
+No TLS config. Caddy serves HTTP on port 80 only. No ACME challenges, no rate limit risk.
+
+**PR 7 — live Caddyfile (replace after `dig` confirms all .de domains resolve to CCX23):**
 
 ```
 raphaellee.de {
@@ -247,23 +284,37 @@ raphaellee.eu {
   redir https://raphaellee.de{uri} permanent
 }
 
-*.raphaellee.eu {
-  redir https://{labels.1}.raphaellee.de{uri} permanent
+transflow.raphaellee.eu {
+  redir https://transflow.raphaellee.de{uri} permanent
+}
+
+dashboard.raphaellee.eu {
+  redir https://dashboard.raphaellee.de{uri} permanent
 }
 ```
 
-Caddy auto-TLS via Let's Encrypt HTTP-01 challenge. Certs issued on first `docker compose up` once DNS resolves.
+After `docker compose restart caddy` with the live Caddyfile, Caddy requests TLS certs automatically via Let's Encrypt HTTP-01 challenge. All 6 domains get individual certs. No wildcard cert required.
 
 ### DNS (Cloudflare)
 
 Both `raphaellee.de` and `raphaellee.eu` zones in Cloudflare.
 
-For each zone:
+**raphaellee.de zone:**
 
 | Type | Name | Value | Proxy |
 |------|------|-------|-------|
 | A | `@` | CCX23 IP | DNS-only (grey cloud) |
-| CNAME | `*` | `raphaellee.de` (or `.eu`) | DNS-only (grey cloud) |
+| CNAME | `*` | `raphaellee.de` | DNS-only (grey cloud) |
+
+**raphaellee.eu zone:**
+
+| Type | Name | Value | Proxy |
+|------|------|-------|-------|
+| A | `@` | CCX23 IP | DNS-only (grey cloud) |
+| A | `transflow` | CCX23 IP | DNS-only (grey cloud) |
+| A | `dashboard` | CCX23 IP | DNS-only (grey cloud) |
+
+No wildcard CNAME on `.eu` — explicit A records only (avoids DNS-01 requirement for wildcard TLS).
 
 **Proxy must be off (grey cloud).** Caddy does TLS directly; Cloudflare proxying breaks ACME HTTP-01 challenges on port 80.
 
@@ -280,12 +331,27 @@ DNS propagation: up to 1 hour. Start this before the Compose session, verify wit
 | 3 | `feat/spring-boot-bom` | Root + event-driven pom.xml | — |
 | 4 | `feat/ci-workflow` | `.github/workflows/ci.yml` | PR 3 merged (CI needs pom.xml) |
 | 5 | `feat/devcontainer` | `.devcontainer/devcontainer.json` | — |
-| 6 | `feat/compose-caddy` | `compose/` directory + Caddyfile + root `.gitignore` | — |
+| 6 | `feat/compose-caddy` | `compose/` directory + Caddyfile + root `.gitignore` (see below) | — |
 | 7 | `feat/dns-verified` | Caddyfile update with live responding routes | Hetzner up + DNS propagated |
 
 PRs 1, 3, 5, 6 are independent — open in parallel. PRs 2 and 4 have single-PR dependencies.
 
 ---
+
+## Smoke Verification Checklist (run after each PR merges)
+
+| PR | Verify |
+|----|--------|
+| 1 | Root README renders correctly on github.com/raphaelplee/labs |
+| 2 | All 8 stubs visible; each has architectural decision, trade-off, NOT in scope, reference link |
+| 3 | CI green on first push; `mvn validate` passes locally |
+| 4 | CI badge appears on repo; green on push to main |
+| 5 | devcontainer.json present; Codespaces "open" button visible (optional W1) |
+| 6 | `docker compose up` starts; `docker compose ps` shows caddy + postgres healthy |
+| 7 | `dig transflow.raphaellee.de` → CCX23 IP; `curl https://transflow.raphaellee.de` → 200 + valid cert |
+| 7 | `curl -I https://transflow.raphaellee.eu` → 301 redirect to transflow.raphaellee.de |
+
+Pre-Weekend-2 gate: SB4 compat table above — all three dependencies confirmed before any Java code is written.
 
 ## Success Criteria
 
