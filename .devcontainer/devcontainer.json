@@ -1,0 +1,16 @@
+{
+  "name": "labs",
+  "image": "mcr.microsoft.com/devcontainers/java:25",
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "redhat.vscode-xml",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}
