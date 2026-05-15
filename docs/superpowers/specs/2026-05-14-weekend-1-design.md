@@ -12,7 +12,7 @@ Weekend 1 delivers five things:
 2. 8 module stub READMEs — opinionated stubs with architectural decisions
 3. Spring Boot 4.x BOM — Java 25, Jakarta EE 11, dependency compat validated
 4. CI workflow — `mvn test -P skip-integration-tests` on push/PR
-5. Hetzner CCX23 — Docker Compose + Caddy auto-TLS + DNS (transflow + dashboard subdomains)
+5. Hetzner CX33 — Docker Compose + Caddy auto-TLS + DNS (transflow + dashboard subdomains)
 
 **Approach: repo-first, infra second.** Repo scaffold (PRs 1–5) has zero external dependencies. Hetzner provisioning + DNS propagation runs in parallel or after, no blocking dependency on the code track.
 
@@ -189,7 +189,7 @@ Docker socket mount (not Docker-in-Docker): host socket is Testcontainers' offic
 
 ### Server
 
-- **Hetzner Cloud CCX23** — 4 vCPU, 8 GB RAM, Frankfurt (eu-central) region
+- **Hetzner Cloud CX33** — 4 vCPU, 8 GB RAM, Frankfurt (eu-central) region
 - Provision via Hetzner Cloud UI (manual — Terraform is Weekend 6/multicloud)
 - Upload SSH public key at creation time
 - Create a dedicated limited OS user now — used in Weekend 5 for metrics writes via SSH (`INSERT` on `pr_metrics` only)
@@ -265,7 +265,7 @@ Thumbs.db
 
 No TLS config. Caddy serves HTTP on port 80 only. No ACME challenges, no rate limit risk.
 
-**PR 7 — live Caddyfile (replace after `dig` confirms all .de domains resolve to CCX23):**
+**PR 7 — live Caddyfile (replace after `dig` confirms all .de domains resolve to CX33):**
 
 ```
 raphaellee.de {
@@ -303,16 +303,16 @@ Both `raphaellee.de` and `raphaellee.eu` zones in Cloudflare.
 
 | Type | Name | Value | Proxy |
 |------|------|-------|-------|
-| A | `@` | CCX23 IP | DNS-only (grey cloud) |
+| A | `@` | CX33 IP | DNS-only (grey cloud) |
 | CNAME | `*` | `raphaellee.de` | DNS-only (grey cloud) |
 
 **raphaellee.eu zone:**
 
 | Type | Name | Value | Proxy |
 |------|------|-------|-------|
-| A | `@` | CCX23 IP | DNS-only (grey cloud) |
-| A | `transflow` | CCX23 IP | DNS-only (grey cloud) |
-| A | `dashboard` | CCX23 IP | DNS-only (grey cloud) |
+| A | `@` | CX33 IP | DNS-only (grey cloud) |
+| A | `transflow` | CX33 IP | DNS-only (grey cloud) |
+| A | `dashboard` | CX33 IP | DNS-only (grey cloud) |
 
 No wildcard CNAME on `.eu` — explicit A records only (avoids DNS-01 requirement for wildcard TLS).
 
@@ -348,7 +348,7 @@ PRs 1, 3, 5, 6 are independent — open in parallel. PRs 2 and 4 have single-PR 
 | 4 | CI badge appears on repo; green on push to main |
 | 5 | devcontainer.json present; Codespaces "open" button visible (optional W1) |
 | 6 | `docker compose up` starts; `docker compose ps` shows caddy + postgres healthy |
-| 7 | `dig transflow.raphaellee.de` → CCX23 IP; `curl https://transflow.raphaellee.de` → 200 + valid cert |
+| 7 | `dig transflow.raphaellee.de` → CX33 IP; `curl https://transflow.raphaellee.de` → 200 + valid cert |
 | 7 | `curl -I https://transflow.raphaellee.eu` → 301 redirect to transflow.raphaellee.de |
 
 Pre-Weekend-2 gate: SB4 compat table above — all three dependencies confirmed before any Java code is written.
@@ -357,7 +357,7 @@ Pre-Weekend-2 gate: SB4 compat table above — all three dependencies confirmed 
 
 1. `github.com/raphaelplee/labs` — all 8 stubs visible, root README readable in 60 seconds
 2. `mvn test -P skip-integration-tests` passes in CI (green badge)
-3. `docker compose up` on CCX23 starts Caddy + Postgres without manual intervention
+3. `docker compose up` on CX33 starts Caddy + Postgres without manual intervention
 4. `https://transflow.raphaellee.de` and `https://dashboard.raphaellee.de` return 200 with valid TLS
 5. `https://transflow.raphaellee.eu` redirects to `https://transflow.raphaellee.de`
 6. 7 PRs merged — baseline established for 3x dataset
