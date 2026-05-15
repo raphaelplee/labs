@@ -1,0 +1,3 @@
+:80 {
+  respond "coming soon" 200
+}
