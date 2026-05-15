@@ -1,0 +1,11 @@
+# Build output
+target/
+*.class
+
+# Secrets — never commit
+compose/.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
