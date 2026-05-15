@@ -105,3 +105,19 @@ HTMX is a 1-weekend addition after the core is solid.
 HTMX dependency; Server-Sent Events endpoint at `/events/stream`.
 
 **Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+
+---
+
+### Docker port exposure policy comment
+
+**What:** Add a comment block at the top of `compose/docker-compose.yml` documenting which ports are intentionally mapped vs which must never be mapped:
+- Intentionally exposed: 80 (Caddy HTTP), 443 (Caddy HTTPS)
+- Never expose: 5432 (Postgres), 9092 (Kafka), 7233 (Temporal server), 8080 (Spring Boot app — internal only)
+
+**Why:** Docker bypasses UFW on Linux — any `ports:` mapping in the compose file is immediately internet-accessible. Without a policy comment, Weekend 2+ additions of Kafka and Temporal may accidentally expose management APIs to the public internet.
+
+**Context:** Identified during Weekend 1 eng review. The CX33 server runs Docker with UFW enabled; UFW protects host-level SSH but does not protect Docker-mapped ports. The compose file must be the source of truth for what is and isn't exposed.
+
+**Where to start:** `compose/docker-compose.yml` — add a comment block at the top, before the `services:` key.
+
+**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** Weekend 1 complete
