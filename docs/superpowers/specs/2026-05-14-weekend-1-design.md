@@ -189,15 +189,21 @@ Docker socket mount (not Docker-in-Docker): host socket is Testcontainers' offic
 
 ### Server
 
-- **Hetzner Cloud CX33** — 4 vCPU, 8 GB RAM, Frankfurt (eu-central) region
-- Provision via Hetzner Cloud UI (manual — Terraform is Weekend 6/multicloud)
-- Upload SSH public key at creation time
+- **Hetzner Cloud CPX32** — 4 vCPU, 8 GB RAM, 160 GB SSD, Nuremberg (eu-central) region, ~€16.65/mo
+  - Note: CX33 was unavailable at provisioning time; CPX32 is the equivalent shared AMD tier
+- Ubuntu 24.04, provisioned via Hetzner Cloud UI (manual — Terraform is Weekend 6/multicloud)
+- Upload SSH public key at creation time (`~/.ssh/raphael_github_personal.pub`)
 - Create a dedicated limited OS user now — used in Weekend 5 for metrics writes via SSH (`INSERT` on `pr_metrics` only)
+- Actual versions installed: Docker Engine 29.5.0, Docker Compose v5.1.3
 
 Post-provision:
 ```bash
-apt update && apt install -y docker.io docker-compose-v2
-systemctl enable docker
+curl -fsSL https://get.docker.com | sh
+systemctl enable --now docker
+apt install -y ufw
+ufw default deny incoming && ufw default allow outgoing
+ufw allow ssh && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 443/udp
+ufw --force enable
 ```
 
 ### Docker Compose
