@@ -1,3 +1,23 @@
-:80 {
+raphaellee.de {
   respond "coming soon" 200
+}
+
+transflow.raphaellee.de {
+  respond "coming soon" 200
+}
+
+dashboard.raphaellee.de {
+  respond "coming soon" 200
+}
+
+raphaellee.eu {
+  redir https://raphaellee.de{uri} permanent
+}
+
+transflow.raphaellee.eu {
+  redir https://transflow.raphaellee.de{uri} permanent
+}
+
+dashboard.raphaellee.eu {
+  redir https://dashboard.raphaellee.de{uri} permanent
 }
