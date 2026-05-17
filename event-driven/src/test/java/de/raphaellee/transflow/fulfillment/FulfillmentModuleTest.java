@@ -25,7 +25,7 @@ class FulfillmentModuleTest {
     @Test
     void complete_savesFulfillmentRecord() {
         var orderId = java.util.UUID.randomUUID().toString();
-        var result = fulfillmentService.complete(orderId, "sub-fulfill-1");
+        var result = fulfillmentService.complete(orderId, java.util.UUID.randomUUID());
 
         assertThat(result.status()).isEqualTo("FULFILLED");
         assertThat(result.orderId().toString()).isEqualTo(orderId);

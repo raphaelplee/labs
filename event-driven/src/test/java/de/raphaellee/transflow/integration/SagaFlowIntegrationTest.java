@@ -2,6 +2,7 @@ package de.raphaellee.transflow.integration;
 
 import de.raphaellee.transflow.fulfillment.FulfillmentService;
 import de.raphaellee.transflow.order.OrderService;
+import de.raphaellee.transflow.payment.PaymentScenario;
 import de.raphaellee.transflow.payment.PaymentService;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -60,9 +61,9 @@ class SagaFlowIntegrationTest {
 
     @Test
     void happyPath_sagaReachesCompleted() {
-        String subId = "e2e-sub-" + System.currentTimeMillis();
+        UUID subId = UUID.randomUUID();
         var order = orderService.createOrder(subId);
-        paymentService.confirmPayment(order.orderId(), "happy-path");
+        paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
 
         // Wait for fulfillment record to appear — proxy for saga COMPLETED state
         await().atMost(15, SECONDS).untilAsserted(() -> {

@@ -56,7 +56,7 @@ class SagaIntegrationTest {
     @Test
     void postOrder_returns201_withOrderId() {
         var response = rest.postForEntity("/api/orders",
-            Map.of("subscriptionId", "sub-it-" + UUID.randomUUID()),
+            Map.of("subscriptionId", UUID.randomUUID().toString()),
             Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -65,7 +65,7 @@ class SagaIntegrationTest {
 
     @Test
     void postOrder_duplicateSubscriptionId_returns409() {
-        String sub = "sub-dup-" + UUID.randomUUID();
+        String sub = UUID.randomUUID().toString();
         rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
 
         var response = rest.postForEntity("/api/orders",
@@ -76,7 +76,7 @@ class SagaIntegrationTest {
 
     @Test
     void postOrder_concurrentDuplicate_returns409NotFiveHundred() {
-        String sub = "sub-concurrent-" + UUID.randomUUID();
+        String sub = UUID.randomUUID().toString();
         var r1 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
         var r2 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
         assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -86,7 +86,7 @@ class SagaIntegrationTest {
     @Test
     void postPayment_unknownOrderId_returns404() {
         var response = rest.postForEntity(
-            "/api/payments/" + UUID.randomUUID() + "/confirm?scenario=happy-path",
+            "/api/payments/" + UUID.randomUUID() + "/confirm?scenario=HAPPY_PATH",
             null, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -94,10 +94,10 @@ class SagaIntegrationTest {
 
     @Test
     void postOrder_thenConfirmPayment_returns202() {
-        var order = orderService.createOrder("sub-pay-it-" + UUID.randomUUID());
+        var order = orderService.createOrder(UUID.randomUUID());
 
         var response = rest.postForEntity(
-            "/api/payments/" + order.orderId() + "/confirm?scenario=happy-path",
+            "/api/payments/" + order.orderId() + "/confirm?scenario=HAPPY_PATH",
             null, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
@@ -106,7 +106,7 @@ class SagaIntegrationTest {
 
     @Test
     void postOrder_thenFailPayment_returns202() {
-        var order = orderService.createOrder("sub-fail-it-" + UUID.randomUUID());
+        var order = orderService.createOrder(UUID.randomUUID());
 
         var response = rest.postForEntity(
             "/api/payments/" + order.orderId() + "/fail",
