@@ -9,11 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -63,12 +61,7 @@ class SagaIntegrationTest {
     void setUp() {
         rest = new RestTemplate();
         // Never throw on 4xx/5xx — return ResponseEntity with the actual status instead
-        rest.setErrorHandler(new ResponseErrorHandler() {
-            @Override
-            public boolean hasError(ClientHttpResponse response) { return false; }
-            @Override
-            public void handleError(ClientHttpResponse response) {}
-        });
+        rest.setErrorHandler(response -> false);
     }
 
     private String url(String path) {
