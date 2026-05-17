@@ -15,10 +15,9 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
     private String status = "AWAITING_PAYMENT";
 
     @Override
-    public void run(String orderId, String subscriptionId) {
+    public void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds) {
         log.info("Saga started — orderId={} subscriptionId={}", orderId, subscriptionId);
 
-        // Wait for payment signal
         Workflow.await(() -> paymentOk || paymentFailed);
 
         if (paymentFailed) {
@@ -30,17 +29,12 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
         status = "FULFILLMENT_PROCESSING";
         log.info("Payment confirmed — awaiting fulfillment for orderId={}", orderId);
 
-        // Note: System.getenv() is non-deterministic in Temporal terms but acceptable for this demo.
-        // Production code should pass timeout as a workflow parameter or use Workflow.sideEffect.
-        long timeoutSeconds = Long.parseLong(
-            System.getenv().getOrDefault("SAGA_FULFILLMENT_TIMEOUT_SECONDS", "30"));
-
         boolean completed = Workflow.await(
-            Duration.ofSeconds(timeoutSeconds), () -> fulfillmentDone);
+            Duration.ofSeconds(fulfillmentTimeoutSeconds), () -> fulfillmentDone);
 
         if (!completed) {
             status = "TIMED_OUT";
-            log.warn("Fulfillment timed out after {}s — orderId={}", timeoutSeconds, orderId);
+            log.warn("Fulfillment timed out after {}s — orderId={}", fulfillmentTimeoutSeconds, orderId);
             return;
         }
 

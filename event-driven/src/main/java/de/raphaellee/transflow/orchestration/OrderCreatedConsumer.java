@@ -20,6 +20,9 @@ class OrderCreatedConsumer {
     @Value("${temporal.task-queue:subscription-saga-queue}")
     private String taskQueue;
 
+    @Value("${saga.fulfillment-timeout-seconds:30}")
+    private int fulfillmentTimeoutSeconds;
+
     OrderCreatedConsumer(WorkflowClient workflowClient) {
         this.workflowClient = workflowClient;
     }
@@ -37,7 +40,7 @@ class OrderCreatedConsumer {
         var workflow = workflowClient.newWorkflowStub(SubscriptionSagaWorkflow.class, options);
 
         try {
-            WorkflowClient.start(workflow::run, event.orderId(), event.subscriptionId());
+            WorkflowClient.start(workflow::run, event.orderId(), event.subscriptionId(), fulfillmentTimeoutSeconds);
         } catch (WorkflowExecutionAlreadyStarted e) {
             log.info("Saga already running for workflowId={} — idempotent, skipping", workflowId);
         }

@@ -22,13 +22,18 @@ class FulfillmentConsumer {
     }
 
     @KafkaListener(topics = "payment.processed", groupId = "transflow-fulfillment")
-    void consume(PaymentProcessedEvent event) throws InterruptedException {
+    void consume(PaymentProcessedEvent event) {
         String workflowId = "saga-" + event.subscriptionId();
         log.info("Fulfillment starting — workflowId={} scenario={}", workflowId, event.scenario());
 
         if ("fulfillment-timeout".equals(event.scenario())) {
             log.info("Simulating slow fulfillment — sleeping 35s to trigger workflow timeout");
-            Thread.sleep(35_000);
+            try {
+                Thread.sleep(35_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.warn("Fulfillment sleep interrupted for workflowId={}", workflowId);
+            }
         }
 
         fulfillmentService.complete(event.orderId(), event.subscriptionId());
@@ -36,8 +41,8 @@ class FulfillmentConsumer {
         try {
             workflowClient.newUntypedWorkflowStub(workflowId).signal("fulfillmentDone");
             log.info("FULFILLMENT_DONE signal sent — workflowId={}", workflowId);
-        } catch (WorkflowNotFoundException e) {
-            log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded", workflowId);
+        } catch (io.temporal.client.WorkflowNotFoundException e) {
+            log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded (fulfillment record retained as audit trail)", workflowId);
         }
     }
 }

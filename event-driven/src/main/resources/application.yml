@@ -22,6 +22,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "de.raphaellee.transflow.*"
+        max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer

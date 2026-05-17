@@ -31,7 +31,7 @@ class SubscriptionSagaWorkflowTest {
                     .setWorkflowId("test-saga-1")
                     .build());
 
-        io.temporal.client.WorkflowClient.start(stub::run, "order-1", "sub-1");
+        io.temporal.client.WorkflowClient.start(stub::run, "order-1", "sub-1", 30);
 
         // Signal PAYMENT_OK
         stub.paymentOk();
@@ -49,7 +49,7 @@ class SubscriptionSagaWorkflowTest {
                     .setWorkflowId("test-saga-2")
                     .build());
 
-        io.temporal.client.WorkflowClient.start(stub::run, "order-2", "sub-2");
+        io.temporal.client.WorkflowClient.start(stub::run, "order-2", "sub-2", 30);
         stub.paymentFailed();
 
         // Workflow should complete with PAYMENT_FAILED
@@ -69,7 +69,7 @@ class SubscriptionSagaWorkflowTest {
                     .setWorkflowId("test-saga-3")
                     .build());
 
-        io.temporal.client.WorkflowClient.start(stub::run, "order-3", "sub-3");
+        io.temporal.client.WorkflowClient.start(stub::run, "order-3", "sub-3", 30);
         stub.paymentOk();
         stub.fulfillmentDone();
 
@@ -89,7 +89,7 @@ class SubscriptionSagaWorkflowTest {
                     .setWorkflowId("test-saga-4")
                     .build());
 
-        io.temporal.client.WorkflowClient.start(stub::run, "order-4", "sub-4");
+        io.temporal.client.WorkflowClient.start(stub::run, "order-4", "sub-4", 30);
         stub.paymentOk();
 
         // Skip time past the 30s fulfillment timeout

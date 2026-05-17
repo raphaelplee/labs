@@ -9,7 +9,7 @@ import io.temporal.workflow.WorkflowMethod;
 public interface SubscriptionSagaWorkflow {
 
     @WorkflowMethod
-    void run(String orderId, String subscriptionId);
+    void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds);
 
     @SignalMethod
     void paymentOk();
