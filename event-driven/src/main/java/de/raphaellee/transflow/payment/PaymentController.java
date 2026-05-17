@@ -22,7 +22,7 @@ public class PaymentController {
     @Operation(summary = "Confirm payment — triggers PAYMENT_OK saga signal")
     public ResponseEntity<PaymentResponse> confirm(
             @PathVariable UUID orderId,
-            @RequestParam(defaultValue = "happy-path") String scenario) {
+            @RequestParam(defaultValue = "HAPPY_PATH") PaymentScenario scenario) {
         var response = paymentService.confirmPayment(orderId, scenario);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }

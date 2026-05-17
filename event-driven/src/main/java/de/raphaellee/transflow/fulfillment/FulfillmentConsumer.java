@@ -1,6 +1,7 @@
 package de.raphaellee.transflow.fulfillment;
 
 import de.raphaellee.transflow.payment.PaymentProcessedEvent;
+import de.raphaellee.transflow.payment.PaymentScenario;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import org.slf4j.Logger;
@@ -26,7 +27,7 @@ class FulfillmentConsumer {
         String workflowId = "saga-" + event.subscriptionId().toString();
         log.info("Fulfillment starting — workflowId={} scenario={}", workflowId, event.scenario());
 
-        if ("fulfillment-timeout".equals(event.scenario())) {
+        if (PaymentScenario.FULFILLMENT_TIMEOUT == event.scenario()) {
             log.info("Simulating slow fulfillment — sleeping 35s to trigger workflow timeout");
             try {
                 Thread.sleep(35_000);

@@ -129,9 +129,10 @@ async function trigger(scenario) {
     const order = await orderRes.json();
 
     // Trigger payment
+    const apiScenario = scenario === 'fulfillment-timeout' ? 'FULFILLMENT_TIMEOUT' : 'HAPPY_PATH';
     const endpoint = scenario === 'payment-fail'
       ? `/api/payments/${order.orderId}/fail`
-      : `/api/payments/${order.orderId}/confirm?scenario=${scenario}`;
+      : `/api/payments/${order.orderId}/confirm?scenario=${apiScenario}`;
 
     const payRes = await fetch(endpoint, { method: 'POST' });
     if (!payRes.ok) throw new Error('Payment failed: ' + payRes.status);
