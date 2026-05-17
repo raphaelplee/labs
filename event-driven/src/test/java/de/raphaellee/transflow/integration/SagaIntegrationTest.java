@@ -13,7 +13,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -21,7 +21,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -63,10 +62,12 @@ class SagaIntegrationTest {
     @BeforeEach
     void setUp() {
         rest = new RestTemplate();
-        // Do not throw on 4xx/5xx — return ResponseEntity with the actual status instead
-        rest.setErrorHandler(new DefaultResponseErrorHandler() {
+        // Never throw on 4xx/5xx — return ResponseEntity with the actual status instead
+        rest.setErrorHandler(new ResponseErrorHandler() {
             @Override
-            public void handleError(ClientHttpResponse response) throws IOException {}
+            public boolean hasError(ClientHttpResponse response) { return false; }
+            @Override
+            public void handleError(ClientHttpResponse response) {}
         });
     }
 
