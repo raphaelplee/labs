@@ -2,21 +2,26 @@ package de.raphaellee.transflow.integration;
 
 import de.raphaellee.transflow.order.OrderService;
 import io.temporal.client.WorkflowClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,15 +52,31 @@ class SagaIntegrationTest {
     @MockitoBean
     WorkflowClient workflowClient;
 
-    @Autowired
-    TestRestTemplate rest;
+    @Value("${local.server.port}")
+    int port;
+
+    private RestTemplate rest;
 
     @Autowired
     OrderService orderService;
 
+    @BeforeEach
+    void setUp() {
+        rest = new RestTemplate();
+        // Do not throw on 4xx/5xx — return ResponseEntity with the actual status instead
+        rest.setErrorHandler(new DefaultResponseErrorHandler() {
+            @Override
+            public void handleError(ClientHttpResponse response) throws IOException {}
+        });
+    }
+
+    private String url(String path) {
+        return "http://localhost:" + port + path;
+    }
+
     @Test
     void postOrder_returns201_withOrderId() {
-        var response = rest.postForEntity("/api/orders",
+        var response = rest.postForEntity(url("/api/orders"),
             Map.of("subscriptionId", UUID.randomUUID().toString()),
             Map.class);
 
@@ -66,9 +87,9 @@ class SagaIntegrationTest {
     @Test
     void postOrder_duplicateSubscriptionId_returns409() {
         String sub = UUID.randomUUID().toString();
-        rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
+        rest.postForEntity(url("/api/orders"), Map.of("subscriptionId", sub), Map.class);
 
-        var response = rest.postForEntity("/api/orders",
+        var response = rest.postForEntity(url("/api/orders"),
             Map.of("subscriptionId", sub), Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -77,8 +98,8 @@ class SagaIntegrationTest {
     @Test
     void postOrder_concurrentDuplicate_returns409NotFiveHundred() {
         String sub = UUID.randomUUID().toString();
-        var r1 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
-        var r2 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
+        var r1 = rest.postForEntity(url("/api/orders"), Map.of("subscriptionId", sub), Map.class);
+        var r2 = rest.postForEntity(url("/api/orders"), Map.of("subscriptionId", sub), Map.class);
         assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(r2.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -86,7 +107,7 @@ class SagaIntegrationTest {
     @Test
     void postPayment_unknownOrderId_returns404() {
         var response = rest.postForEntity(
-            "/api/payments/" + UUID.randomUUID() + "/confirm?scenario=HAPPY_PATH",
+            url("/api/payments/" + UUID.randomUUID() + "/confirm?scenario=HAPPY_PATH"),
             null, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -97,7 +118,7 @@ class SagaIntegrationTest {
         var order = orderService.createOrder(UUID.randomUUID());
 
         var response = rest.postForEntity(
-            "/api/payments/" + order.orderId() + "/confirm?scenario=HAPPY_PATH",
+            url("/api/payments/" + order.orderId() + "/confirm?scenario=HAPPY_PATH"),
             null, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
@@ -109,7 +130,7 @@ class SagaIntegrationTest {
         var order = orderService.createOrder(UUID.randomUUID());
 
         var response = rest.postForEntity(
-            "/api/payments/" + order.orderId() + "/fail",
+            url("/api/payments/" + order.orderId() + "/fail"),
             null, Map.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);

@@ -1,6 +1,7 @@
 package de.raphaellee.transflow.payment;
 
 import de.raphaellee.transflow.order.OrderService;
+import java.util.UUID;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +24,9 @@ class PaymentModuleTest {
 
     @Test
     void confirmPayment_createsPaymentRecord() {
-        var order = orderService.createOrder("sub-pay-1");
+        var order = orderService.createOrder(UUID.randomUUID());
 
-        var payment = paymentService.confirmPayment(order.orderId(), "happy-path");
+        var payment = paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
 
         assertThat(payment.orderId()).isEqualTo(order.orderId());
         assertThat(payment.status()).isEqualTo("PROCESSED");
@@ -33,7 +34,7 @@ class PaymentModuleTest {
 
     @Test
     void failPayment_createsFailedRecord() {
-        var order = orderService.createOrder("sub-pay-2");
+        var order = orderService.createOrder(UUID.randomUUID());
 
         var payment = paymentService.failPayment(order.orderId());
 
@@ -43,7 +44,7 @@ class PaymentModuleTest {
 
     @Test
     void confirmPayment_unknownOrder_throws() {
-        assertThatThrownBy(() -> paymentService.confirmPayment(java.util.UUID.randomUUID(), "happy-path"))
+        assertThatThrownBy(() -> paymentService.confirmPayment(UUID.randomUUID(), PaymentScenario.HAPPY_PATH))
             .isInstanceOf(jakarta.persistence.EntityNotFoundException.class);
     }
 }
