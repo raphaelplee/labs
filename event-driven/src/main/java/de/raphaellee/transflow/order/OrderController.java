@@ -20,14 +20,14 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "Create a new order and start a saga")
-    ResponseEntity<OrderResponse> createOrder(@RequestBody OrderRequest request) {
+    public ResponseEntity<OrderResponse> createOrder(@RequestBody OrderRequest request) {
         var response = orderService.createOrder(request.subscriptionId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/{orderId}")
     @Operation(summary = "Get order by ID")
-    ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
+    public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
         return ResponseEntity.ok(orderService.getOrder(orderId));
     }
 }

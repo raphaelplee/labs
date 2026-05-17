@@ -26,15 +26,15 @@ public class OrderService {
 
         var order = new Order(UUID.randomUUID(), subscriptionId);
         repository.save(order);
-        publisher.publishEvent(new OrderCreatedEvent(order.id.toString(), subscriptionId));
+        publisher.publishEvent(new OrderCreatedEvent(order.getId().toString(), subscriptionId));
 
-        return new OrderResponse(order.id, order.subscriptionId, order.status, order.createdAt);
+        return new OrderResponse(order.getId(), order.getSubscriptionId(), order.getStatus(), order.getCreatedAt());
     }
 
     @Transactional(readOnly = true)
     public OrderResponse getOrder(UUID orderId) {
         var order = repository.findById(orderId)
             .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
-        return new OrderResponse(order.id, order.subscriptionId, order.status, order.createdAt);
+        return new OrderResponse(order.getId(), order.getSubscriptionId(), order.getStatus(), order.getCreatedAt());
     }
 }

@@ -8,10 +8,15 @@ import java.util.UUID;
 @Table(schema = "transflow", name = "orders")
 class Order {
     @Id
-    UUID id;
-    String subscriptionId;
-    String status;
-    Instant createdAt;
+    private UUID id;
+
+    @Column(unique = true)
+    private String subscriptionId;
+
+    private String status;
+
+    @Column(updatable = false)
+    private Instant createdAt;
 
     protected Order() {}
 
@@ -21,4 +26,9 @@ class Order {
         this.status = "CREATED";
         this.createdAt = Instant.now();
     }
+
+    UUID getId() { return id; }
+    String getSubscriptionId() { return subscriptionId; }
+    String getStatus() { return status; }
+    Instant getCreatedAt() { return createdAt; }
 }
