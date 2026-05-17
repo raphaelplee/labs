@@ -122,7 +122,33 @@ adminer:        mem_limit: 64m
 # Total capped: ~3.3 GB. Leaves ~4.7 GB for OS + headroom.
 ```
 
-**Temporal depends_on:** `postgres` with healthcheck (`pg_isready`) required — Temporal auto-setup fails to create its schema if Postgres isn't ready.
+**Startup dependency chain** (cold start reliability — required):
+
+```yaml
+elasticsearch:
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s || exit 1"]
+    interval: 15s
+    timeout: 10s
+    retries: 10
+    start_period: 60s   # ES needs up to 60s before it accepts health checks
+
+temporal:
+  depends_on:
+    postgres:
+      condition: service_healthy   # pg_isready (existing)
+    elasticsearch:
+      condition: service_healthy   # wait for ES yellow status
+
+transflow-core:
+  depends_on:
+    temporal:
+      condition: service_healthy   # wait for Temporal gRPC port
+  # Temporal healthcheck: temporalio/auto-setup exposes :7233 when ready
+  # Use: nc -z localhost 7233 || exit 1  (or curl :7233, returns HTTP 200)
+```
+
+Rationale: Elasticsearch 8 takes 45-90 s on a cold start. Without this chain, `transflow-core` can boot before Temporal's advanced visibility is ready, causing the Temporal Java SDK to fail workflow listing silently. The chain guarantees a single `docker compose up` works without manual restarts.
 
 **Adminer security:** not exposed via Caddy. Access via SSH tunnel:
 ```bash
@@ -273,17 +299,30 @@ GET /api/fulfillments/{orderId}
 
 Served by `transflow-core` (orchestration module) at `transflow.raphaellee.de`. Single `index.html`, vanilla JS, no framework. Polls `GET /api/sagas` every 2 seconds.
 
+**Architecture blurb** (shown above the trigger panel — always visible):
+
+> A subscription lifecycle saga — order → payment → fulfillment — orchestrated by **Temporal** and triggered via **Kafka** domain events. Built with **Spring Boot 4** + **Spring Modulith** (four enforced module boundaries in one JVM). Each button below triggers a real distributed workflow. Watch it propagate in real time — or follow the full trace in [Temporal UI] and [Kafka UI].
+
+This gives every visitor (technical or not) the hook to understand what they're looking at and which technologies are in use.
+
 **Layout:**
 
+Nav bar: `transflow` logo · connection status dot (🟢 connected / 🔴 backend unreachable) · links: Temporal UI · Kafka UI · Swagger UI
+
 Left panel — **Trigger**:
-- "Happy Path" → POST /api/orders → POST /api/payments/{id}/confirm
-- "Payment Failure" → POST /api/orders → POST /api/payments/{id}/fail
-- "Fulfillment Timeout" → POST /api/orders → POST /api/payments/{id}/confirm?scenario=fulfillment-timeout
+- "Happy Path" → POST /api/orders → POST /api/payments/{id}/confirm  
+  *Button disables + shows spinner on click; re-enables when new saga card appears*
+- "Payment Failure" → POST /api/orders → POST /api/payments/{id}/fail  
+  *Same button feedback pattern*
+- "Fulfillment Timeout" → POST /api/orders → POST /api/payments/{id}/confirm?scenario=fulfillment-timeout  
+  *Same button feedback pattern*
 - "Test Idempotency" → same POST /api/orders (fixed subscriptionId) twice in rapid succession
+
+**Button click feedback:** On click, each trigger button immediately disables and shows a loading indicator. It re-enables on the next successful poll that returns the new saga card (or after 10 seconds as a safety timeout). This prevents double-submit and gives instant visual confirmation that the request was received.
 
 Right panel — **Live Saga List**: each saga as a card with step timeline dots (grey/yellow/green/red) and status badge.
 
-Nav bar links: Temporal UI · Kafka UI · Swagger UI
+**Backend status indicator:** The nav bar shows a small connection dot. When `GET /api/sagas` returns successfully → green. When it fails (network error, 5xx, timeout) → red with "Backend unreachable — retrying". This distinguishes "no sagas yet" from "backend is down" — critical for cold-start scenarios where Elasticsearch/Temporal may still be initializing.
 
 ---
 
@@ -378,6 +417,6 @@ These three are tagged `@Tag("unit")` and included in the default Surefire run.
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 7 issues, 0 critical gaps |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
-| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 1 | CLEAR | 4 issues, 0 critical gaps |
 
-**VERDICT: ENG CLEARED — ready to implement.**
+**VERDICT: ENG + DX CLEARED — ready to implement.**
