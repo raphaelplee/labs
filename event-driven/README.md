@@ -25,14 +25,14 @@ These topics are the **public integration surface** of transflow-core. A future 
 
 | Topic | Producer | Consumers | Schema |
 |-------|----------|-----------|--------|
-| `order.created` | order module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
-| `payment.processed` | payment module | transflow-orchestration, transflow-fulfillment | `{"orderId": "UUID", "subscriptionId": "string", "scenario": "string"}` |
-| `payment.failed` | payment module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
-| `fulfillment.completed` | fulfillment module | — (audit only) | `{"fulfillmentId": "UUID", "orderId": "UUID", "subscriptionId": "string"}` |
+| `order.created` | order module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "UUID"}` |
+| `payment.processed` | payment module | transflow-orchestration, transflow-fulfillment | `{"orderId": "UUID", "subscriptionId": "UUID", "scenario": "string"}` |
+| `payment.failed` | payment module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "UUID"}` |
+| `fulfillment.completed` | fulfillment module | — (audit only) | `{"fulfillmentId": "UUID", "orderId": "UUID", "subscriptionId": "UUID"}` |
 
 **Key convention:** none (null key). Messages are not keyed; ordering within a topic is not required.
 
-**WorkflowId convention:** `"saga-" + subscriptionId`
+**WorkflowId convention:** `"saga-" + subscriptionId.toString()` (e.g. `saga-018f1234-dead-7000-beef-000000000001`)
 
 ## Saga State Machine
 

@@ -6,7 +6,7 @@ import java.util.UUID;
 public record FulfillmentResponse(
     UUID fulfillmentId,
     UUID orderId,
-    String subscriptionId,
+    UUID subscriptionId,
     String status,
     Instant fulfilledAt
 ) {}

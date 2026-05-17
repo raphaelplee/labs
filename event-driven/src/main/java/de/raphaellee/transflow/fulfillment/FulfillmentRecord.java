@@ -16,7 +16,7 @@ class FulfillmentRecord {
     private UUID orderId;
 
     @Column(updatable = false, nullable = false)
-    private String subscriptionId;
+    private UUID subscriptionId;
 
     private String status;
 
@@ -25,7 +25,7 @@ class FulfillmentRecord {
 
     protected FulfillmentRecord() {}
 
-    FulfillmentRecord(UUID orderId, String subscriptionId) {
+    FulfillmentRecord(UUID orderId, UUID subscriptionId) {
         this.orderId = orderId;
         this.subscriptionId = subscriptionId;
         this.status = "FULFILLED";
@@ -34,7 +34,7 @@ class FulfillmentRecord {
 
     UUID getId() { return id; }
     UUID getOrderId() { return orderId; }
-    String getSubscriptionId() { return subscriptionId; }
+    UUID getSubscriptionId() { return subscriptionId; }
     String getStatus() { return status; }
     Instant getFulfilledAt() { return fulfilledAt; }
 }

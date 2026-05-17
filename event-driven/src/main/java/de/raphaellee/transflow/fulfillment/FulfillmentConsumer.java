@@ -23,7 +23,7 @@ class FulfillmentConsumer {
 
     @KafkaListener(topics = "payment.processed", groupId = "transflow-fulfillment")
     void consume(PaymentProcessedEvent event) {
-        String workflowId = "saga-" + event.subscriptionId();
+        String workflowId = "saga-" + event.subscriptionId().toString();
         log.info("Fulfillment starting — workflowId={} scenario={}", workflowId, event.scenario());
 
         if ("fulfillment-timeout".equals(event.scenario())) {

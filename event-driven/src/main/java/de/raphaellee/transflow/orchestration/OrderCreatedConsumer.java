@@ -29,7 +29,7 @@ class OrderCreatedConsumer {
 
     @KafkaListener(topics = "order.created", groupId = "transflow-orchestration")
     void consume(OrderCreatedEvent event) {
-        String workflowId = "saga-" + event.subscriptionId();
+        String workflowId = "saga-" + event.subscriptionId().toString();
         log.info("Starting saga — workflowId={} orderId={}", workflowId, event.orderId());
 
         var options = WorkflowOptions.newBuilder()

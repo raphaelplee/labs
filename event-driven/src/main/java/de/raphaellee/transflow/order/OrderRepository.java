@@ -5,5 +5,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 interface OrderRepository extends JpaRepository<Order, UUID> {
-    Optional<Order> findBySubscriptionId(String subscriptionId);
+    Optional<Order> findBySubscriptionId(UUID subscriptionId);
 }

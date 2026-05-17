@@ -18,7 +18,7 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponse createOrder(String subscriptionId) {
+    public OrderResponse createOrder(UUID subscriptionId) {
         repository.findBySubscriptionId(subscriptionId).ifPresent(existing -> {
             throw new IllegalStateException(
                 "An active order already exists for this subscription");

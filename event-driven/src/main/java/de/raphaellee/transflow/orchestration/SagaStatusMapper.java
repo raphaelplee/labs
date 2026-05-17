@@ -6,15 +6,16 @@ import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 class SagaStatusMapper {
 
     SagaStatus fromExecutionInfo(WorkflowExecutionInfo info) {
         String workflowId = info.getExecution().getWorkflowId();
-        String subscriptionId = workflowId.startsWith("saga-")
-            ? workflowId.substring(5)
-            : workflowId;
+        UUID subscriptionId = workflowId.startsWith("saga-")
+            ? UUID.fromString(workflowId.substring(5))
+            : UUID.fromString(workflowId);
 
         String status = mapStatus(info.getStatus());
         Instant startedAt = Instant.ofEpochSecond(
@@ -30,9 +31,9 @@ class SagaStatusMapper {
     SagaStatus fromDescribeResponse(DescribeWorkflowExecutionResponse resp) {
         var info = resp.getWorkflowExecutionInfo();
         String workflowId = info.getExecution().getWorkflowId();
-        String subscriptionId = workflowId.startsWith("saga-")
-            ? workflowId.substring(5)
-            : workflowId;
+        UUID subscriptionId = workflowId.startsWith("saga-")
+            ? UUID.fromString(workflowId.substring(5))
+            : UUID.fromString(workflowId);
 
         String status = mapStatus(info.getStatus());
         Instant startedAt = Instant.ofEpochSecond(

@@ -4,6 +4,7 @@ import io.temporal.workflow.Workflow;
 import org.slf4j.Logger;
 
 import java.time.Duration;
+import java.util.UUID;
 
 public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 
@@ -15,7 +16,7 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
     private String status = "AWAITING_PAYMENT";
 
     @Override
-    public void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds) {
+    public void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds) {
         log.info("Saga started — orderId={} subscriptionId={}", orderId, subscriptionId);
 
         Workflow.await(() -> paymentOk || paymentFailed);

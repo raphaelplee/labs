@@ -4,12 +4,13 @@ import io.temporal.workflow.QueryMethod;
 import io.temporal.workflow.SignalMethod;
 import io.temporal.workflow.WorkflowInterface;
 import io.temporal.workflow.WorkflowMethod;
+import java.util.UUID;
 
 @WorkflowInterface
 public interface SubscriptionSagaWorkflow {
 
     @WorkflowMethod
-    void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds);
+    void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds);
 
     @SignalMethod
     void paymentOk();

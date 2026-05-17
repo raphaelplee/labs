@@ -13,7 +13,7 @@ class Order {
     private UUID id;
 
     @Column(unique = true)
-    private String subscriptionId;
+    private UUID subscriptionId;
 
     private String status;
 
@@ -22,14 +22,14 @@ class Order {
 
     protected Order() {}
 
-    Order(String subscriptionId) {
+    Order(UUID subscriptionId) {
         this.subscriptionId = subscriptionId;
         this.status = "CREATED";
         this.createdAt = Instant.now();
     }
 
     UUID getId() { return id; }
-    String getSubscriptionId() { return subscriptionId; }
+    UUID getSubscriptionId() { return subscriptionId; }
     String getStatus() { return status; }
     Instant getCreatedAt() { return createdAt; }
 }
