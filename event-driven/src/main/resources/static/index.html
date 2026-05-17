@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transflow — Subscription Lifecycle Saga</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+  nav { display: flex; align-items: center; gap: 16px; padding: 14px 24px; background: #161b22; border-bottom: 1px solid #30363d; }
+  nav .logo { font-weight: 700; font-size: 16px; color: #f0f6fc; margin-right: auto; }
+  nav a { color: #58a6ff; font-size: 13px; text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; display: inline-block; margin-right: 4px; }
+  .status-dot.error { background: #f85149; }
+
+  .blurb { padding: 16px 24px; background: #21262d; border-bottom: 1px solid #30363d; font-size: 13px; color: #8b949e; line-height: 1.6; }
+  .blurb strong { color: #e6edf3; }
+
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 0; height: calc(100vh - 105px); }
+
+  .trigger-panel { padding: 24px; border-right: 1px solid #30363d; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  .trigger-panel h2 { font-size: 13px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+
+  .btn { display: block; width: 100%; padding: 10px 14px; border-radius: 6px; border: 1px solid #30363d; background: #21262d; color: #e6edf3; font-size: 13px; cursor: pointer; text-align: left; transition: border-color 0.15s; }
+  .btn:hover:not(:disabled) { border-color: #58a6ff; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn .btn-title { font-weight: 600; display: block; margin-bottom: 2px; }
+  .btn .btn-desc { color: #8b949e; font-size: 11px; }
+  .btn.loading { border-color: #f0883e; }
+  .spinner { display: none; margin-left: 6px; }
+  .btn.loading .spinner { display: inline; }
+
+  .saga-panel { padding: 24px; overflow-y: auto; }
+  .saga-panel h2 { font-size: 13px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 16px; }
+  .empty { color: #8b949e; font-size: 13px; padding: 32px 0; text-align: center; }
+
+  .saga-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+  .saga-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .saga-id { font-size: 11px; color: #58a6ff; font-family: monospace; }
+  .saga-sub { font-size: 12px; color: #8b949e; }
+  .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .badge.AWAITING_PAYMENT { background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb; }
+  .badge.FULFILLMENT_PROCESSING { background: #9a6700aa; color: #e3b341; border: 1px solid #9a6700; }
+  .badge.COMPLETED { background: #2ea04322; color: #3fb950; border: 1px solid #2ea043; }
+  .badge.PAYMENT_FAILED { background: #da363322; color: #f85149; border: 1px solid #da3633; }
+  .badge.TIMED_OUT { background: #da363322; color: #f85149; border: 1px solid #da3633; }
+  .steps { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .step-dot { width: 10px; height: 10px; border-radius: 50%; background: #30363d; }
+  .step-dot.COMPLETED { background: #3fb950; }
+  .step-dot.RUNNING { background: #f0883e; animation: pulse 1.5s ease-in-out infinite; }
+  .step-dot.FAILED, .step-dot.TIMED_OUT { background: #f85149; }
+  .step-label { font-size: 10px; color: #8b949e; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .saga-time { font-size: 10px; color: #8b949e; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">transflow</span>
+  <span id="conn-dot" class="status-dot" title="Backend connected"></span>
+  <a href="/temporal" target="_blank">Temporal UI</a>
+  <a href="/kafka" target="_blank">Kafka UI</a>
+  <a href="/swagger-ui/index.html" target="_blank">Swagger UI</a>
+</nav>
+
+<div class="blurb">
+  A <strong>subscription lifecycle saga</strong> — order &rarr; payment &rarr; fulfillment — orchestrated by
+  <strong>Temporal</strong> and triggered via <strong>Kafka</strong> domain events. Built with
+  <strong>Spring Boot 4</strong> + <strong>Spring Modulith</strong> (four enforced module boundaries in one JVM).
+  Each button triggers a real distributed workflow. Watch it propagate in real time — or follow the full trace in
+  <a href="/temporal" target="_blank" style="color:#58a6ff">Temporal UI</a> and
+  <a href="/kafka" target="_blank" style="color:#58a6ff">Kafka UI</a>.
+</div>
+
+<div class="layout">
+  <div class="trigger-panel">
+    <h2>Trigger</h2>
+
+    <button class="btn" id="btn-happy" onclick="trigger('happy-path')">
+      <span class="btn-title">Happy Path <span class="spinner">⏳</span></span>
+      <span class="btn-desc">order &rarr; payment &rarr; fulfillment &rarr; COMPLETED</span>
+    </button>
+
+    <button class="btn" id="btn-fail" onclick="trigger('payment-fail')">
+      <span class="btn-title">Payment Failure <span class="spinner">⏳</span></span>
+      <span class="btn-desc">order &rarr; payment fails &rarr; PAYMENT_FAILED</span>
+    </button>
+
+    <button class="btn" id="btn-timeout" onclick="trigger('fulfillment-timeout')">
+      <span class="btn-title">Fulfillment Timeout <span class="spinner">⏳</span></span>
+      <span class="btn-desc">Fulfillment sleeps 35s, workflow times out at 30s &rarr; TIMED_OUT</span>
+    </button>
+
+    <button class="btn" id="btn-idem" onclick="triggerIdempotency()">
+      <span class="btn-title">Test Idempotency <span class="spinner">⏳</span></span>
+      <span class="btn-desc">Same subscriptionId fired twice — only one saga starts</span>
+    </button>
+  </div>
+
+  <div class="saga-panel">
+    <h2>Live Saga List</h2>
+    <div id="saga-list"><p class="empty">No sagas yet — click a trigger button.</p></div>
+  </div>
+</div>
+
+<script>
+const FIXED_IDEM_SUB = 'idem-fixed-sub-001';
+let lastSagaCount = 0;
+
+async function trigger(scenario) {
+  const btnId = scenario === 'happy-path' ? 'btn-happy'
+    : scenario === 'payment-fail' ? 'btn-fail'
+    : 'btn-timeout';
+  const btn = document.getElementById(btnId);
+  setLoading(btn, true);
+
+  try {
+    // Create order
+    const subId = 'sub-' + Date.now();
+    const orderRes = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscriptionId: subId })
+    });
+    if (!orderRes.ok) throw new Error('Order creation failed: ' + orderRes.status);
+    const order = await orderRes.json();
+
+    // Trigger payment
+    const endpoint = scenario === 'payment-fail'
+      ? `/api/payments/${order.orderId}/fail`
+      : `/api/payments/${order.orderId}/confirm?scenario=${scenario}`;
+
+    const payRes = await fetch(endpoint, { method: 'POST' });
+    if (!payRes.ok) throw new Error('Payment failed: ' + payRes.status);
+
+    // Wait for new saga card then re-enable button
+    waitForNewSaga(btn);
+  } catch (err) {
+    console.error(err);
+    setLoading(btn, false);
+    alert('Error: ' + err.message);
+  }
+}
+
+async function triggerIdempotency() {
+  const btn = document.getElementById('btn-idem');
+  setLoading(btn, true);
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId: FIXED_IDEM_SUB }) }),
+      fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscriptionId: FIXED_IDEM_SUB }) })
+    ]);
+    console.log('Idempotency results:', r1.status, r2.status);
+    waitForNewSaga(btn);
+  } catch (err) {
+    console.error(err);
+    setLoading(btn, false);
+  }
+}
+
+function setLoading(btn, loading) {
+  btn.disabled = loading;
+  btn.classList.toggle('loading', loading);
+}
+
+function waitForNewSaga(btn) {
+  const start = Date.now();
+  const check = setInterval(() => {
+    if (Date.now() - start > 10000) { clearInterval(check); setLoading(btn, false); }
+    const cards = document.querySelectorAll('.saga-card');
+    if (cards.length > lastSagaCount) { clearInterval(check); setLoading(btn, false); }
+  }, 500);
+}
+
+async function pollSagas() {
+  const connDot = document.getElementById('conn-dot');
+  try {
+    const res = await fetch('/api/sagas');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    connDot.className = 'status-dot';
+    connDot.title = 'Backend connected';
+    const sagas = await res.json();
+    renderSagas(sagas);
+    lastSagaCount = sagas.length;
+  } catch (err) {
+    connDot.className = 'status-dot error';
+    connDot.title = 'Backend unreachable — retrying';
+  }
+}
+
+function renderSagas(sagas) {
+  const list = document.getElementById('saga-list');
+  if (sagas.length === 0) {
+    list.innerHTML = '<p class="empty">No sagas yet — click a trigger button.</p>';
+    return;
+  }
+  list.innerHTML = sagas.map(s => `
+    <div class="saga-card">
+      <div class="saga-card-header">
+        <div>
+          <div class="saga-id">${s.sagaId}</div>
+          <div class="saga-sub">${s.subscriptionId}</div>
+        </div>
+        <span class="badge ${s.status}">${s.status}</span>
+      </div>
+      <div class="steps">
+        ${(s.steps || []).map(step => `
+          <span class="step-dot ${step.status}" title="${step.name}: ${step.status}"></span>
+          <span class="step-label">${step.name.replace(/_/g,' ')}</span>
+        `).join('<span style="color:#30363d;margin:0 2px">&rarr;</span>')}
+      </div>
+      <div class="saga-time">${new Date(s.startedAt).toLocaleTimeString()}</div>
+    </div>
+  `).join('');
+}
+
+// Poll every 2 seconds
+pollSagas();
+setInterval(pollSagas, 2000);
+</script>
+</body>
+</html>
