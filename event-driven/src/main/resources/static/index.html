@@ -195,28 +195,66 @@ async function pollSagas() {
 
 function renderSagas(sagas) {
   const list = document.getElementById('saga-list');
+  list.textContent = '';
   if (sagas.length === 0) {
-    list.innerHTML = '<p class="empty">No sagas yet — click a trigger button.</p>';
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'No sagas yet — click a trigger button.';
+    list.appendChild(empty);
     return;
   }
-  list.innerHTML = sagas.map(s => `
-    <div class="saga-card">
-      <div class="saga-card-header">
-        <div>
-          <div class="saga-id">${s.sagaId}</div>
-          <div class="saga-sub">${s.subscriptionId}</div>
-        </div>
-        <span class="badge ${s.status}">${s.status}</span>
-      </div>
-      <div class="steps">
-        ${(s.steps || []).map(step => `
-          <span class="step-dot ${step.status}" title="${step.name}: ${step.status}"></span>
-          <span class="step-label">${step.name.replace(/_/g,' ')}</span>
-        `).join('<span style="color:#30363d;margin:0 2px">&rarr;</span>')}
-      </div>
-      <div class="saga-time">${new Date(s.startedAt).toLocaleTimeString()}</div>
-    </div>
-  `).join('');
+  for (const s of sagas) {
+    const card = document.createElement('div');
+    card.className = 'saga-card';
+
+    const header = document.createElement('div');
+    header.className = 'saga-card-header';
+
+    const idBlock = document.createElement('div');
+    const sagaIdEl = document.createElement('div');
+    sagaIdEl.className = 'saga-id';
+    sagaIdEl.textContent = s.sagaId;
+    const sagaSubEl = document.createElement('div');
+    sagaSubEl.className = 'saga-sub';
+    sagaSubEl.textContent = s.subscriptionId;
+    idBlock.appendChild(sagaIdEl);
+    idBlock.appendChild(sagaSubEl);
+
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (s.status || '');
+    badge.textContent = s.status;
+
+    header.appendChild(idBlock);
+    header.appendChild(badge);
+
+    const steps = document.createElement('div');
+    steps.className = 'steps';
+    for (const [i, step] of (s.steps || []).entries()) {
+      if (i > 0) {
+        const arrow = document.createElement('span');
+        arrow.setAttribute('style', 'color:#30363d;margin:0 2px');
+        arrow.textContent = '→';
+        steps.appendChild(arrow);
+      }
+      const dot = document.createElement('span');
+      dot.className = 'step-dot ' + (step.status || '');
+      dot.title = step.name + ': ' + step.status;
+      const label = document.createElement('span');
+      label.className = 'step-label';
+      label.textContent = step.name.replace(/_/g, ' ');
+      steps.appendChild(dot);
+      steps.appendChild(label);
+    }
+
+    const time = document.createElement('div');
+    time.className = 'saga-time';
+    time.textContent = new Date(s.startedAt).toLocaleTimeString();
+
+    card.appendChild(header);
+    card.appendChild(steps);
+    card.appendChild(time);
+    list.appendChild(card);
+  }
 }
 
 // Poll every 2 seconds

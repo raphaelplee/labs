@@ -2,6 +2,7 @@ package de.raphaellee.transflow.order;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,7 +21,7 @@ public class OrderController {
 
     @PostMapping
     @Operation(summary = "Create a new order and start a saga")
-    public ResponseEntity<OrderResponse> createOrder(@RequestBody OrderRequest request) {
+    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request) {
         var response = orderService.createOrder(request.subscriptionId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

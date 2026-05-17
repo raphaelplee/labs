@@ -57,12 +57,6 @@
       <artifactId>spring-modulith-events-jpa</artifactId>
     </dependency>
 
-    <!-- Kafka -->
-    <dependency>
-      <groupId>org.springframework.kafka</groupId>
-      <artifactId>spring-kafka</artifactId>
-    </dependency>
-
     <!-- Temporal -->
     <dependency>
       <groupId>io.temporal</groupId>
@@ -94,11 +88,6 @@
 
     <!-- Test -->
     <dependency>
-      <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.springframework.modulith</groupId>
       <artifactId>spring-modulith-starter-test</artifactId>
       <scope>test</scope>
@@ -110,11 +99,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.springframework.kafka</groupId>
-      <artifactId>spring-kafka-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>kafka</artifactId>
       <scope>test</scope>
@@ -122,12 +106,6 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>postgresql</artifactId>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.awaitility</groupId>
-      <artifactId>awaitility</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
