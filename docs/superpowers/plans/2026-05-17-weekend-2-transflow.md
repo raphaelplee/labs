@@ -274,6 +274,14 @@ volumes:
 
 - [ ] **Step 2: Update Caddyfile**
 
+> **Security (CSO audit 2026-05-17):** Temporal UI and Kafka UI MUST be protected with
+> `basic_auth` — both surfaces allow arbitrary signal injection and event publishing.
+> Generate the bcrypt hash first:
+> ```bash
+> docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
+> # → paste the $2y$14$... output as CADDY_DEMO_PASSWORD_HASH in compose/.env
+> ```
+
 Replace `compose/Caddyfile`:
 
 ```
@@ -286,10 +294,16 @@ transflow.raphaellee.de {
 }
 
 temporal.raphaellee.de {
+  basic_auth {
+    demo {env.CADDY_DEMO_PASSWORD_HASH}
+  }
   reverse_proxy temporal-ui:8233
 }
 
 kafka.raphaellee.de {
+  basic_auth {
+    demo {env.CADDY_DEMO_PASSWORD_HASH}
+  }
   reverse_proxy kafka-ui:8090
 }
 
@@ -314,6 +328,8 @@ dashboard.raphaellee.eu {
 
 ```
 POSTGRES_PASSWORD=changeme
+# Generate with: docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
+CADDY_DEMO_PASSWORD_HASH=$2y$14$changeme
 ```
 
 - [ ] **Step 4: Validate compose file parses**
