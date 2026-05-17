@@ -1,23 +1,64 @@
-# event-driven
+# transflow-core
 
-Subscription lifecycle saga using Temporal for orchestration and Kafka for event streaming.
+Subscription lifecycle saga — order → payment → fulfillment — using Temporal, Kafka, and Spring Modulith.
 
-Live demo: [transflow.raphaellee.de](https://transflow.raphaellee.de)
+**Live demo:** https://transflow.raphaellee.de  
+**Temporal UI:** https://temporal.raphaellee.de  
+**Kafka UI:** https://kafka.raphaellee.de  
+**Swagger:** https://transflow.raphaellee.de/swagger-ui/index.html
 
-## Architectural Decision
+## Architecture
 
-**Temporal for saga orchestration over Kafka Streams.**
+```
+Spring Boot 4 (single JVM)
+├── module: orchestration  — SubscriptionSagaWorkflow (Temporal) + Kafka consumers
+├── module: order          — Order entity, REST API, order.created event
+├── module: payment        — Payment entity, REST API, payment.processed/failed events
+└── module: fulfillment    — FulfillmentRecord entity, Kafka consumer, fulfillment.completed event
 
-Temporal provides durable execution and explicit workflow state. A failed step retries with full context — no manual offset management, no dead-letter queue ceremony. Kafka Streams could coordinate the same flow, but at the cost of implementing retry/compensation logic by hand across stream topology.
+Module boundaries enforced by Spring Modulith + ArchUnit (cross-package imports fail CI).
+```
 
-## Trade-off
+## Kafka Topic API Contract
 
-Temporal adds an infra component — one more process to run, one more thing to operate. Kafka Streams is zero-overhead: it runs inside the Spring Boot process. For a portfolio demo with a clear saga boundary, the operational clarity of Temporal's workflow UI outweighs the complexity cost.
+These topics are the **public integration surface** of transflow-core. A future Rust IoT or Go service can consume/produce to these topics using the schemas below.
 
-## NOT in Scope
+| Topic | Producer | Consumers | Schema |
+|-------|----------|-----------|--------|
+| `order.created` | order module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
+| `payment.processed` | payment module | transflow-orchestration, transflow-fulfillment | `{"orderId": "UUID", "subscriptionId": "string", "scenario": "string"}` |
+| `payment.failed` | payment module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
+| `fulfillment.completed` | fulfillment module | — (audit only) | `{"fulfillmentId": "UUID", "orderId": "UUID", "subscriptionId": "string"}` |
 
-Multi-region Temporal deployment. This module runs a single Temporal server on the same Compose stack as the application.
+**Key convention:** none (null key). Messages are not keyed; ordering within a topic is not required.
 
-## Reference
+**WorkflowId convention:** `"saga-" + subscriptionId`
 
-[Temporal documentation — workflows](https://docs.temporal.io/workflows)
+## Saga State Machine
+
+```
+AWAITING_PAYMENT
+  ├── [paymentOk signal]      → FULFILLMENT_PROCESSING
+  │     ├── [fulfillmentDone] → COMPLETED
+  │     └── [30s timeout]    → TIMED_OUT
+  └── [paymentFailed signal]  → PAYMENT_FAILED
+```
+
+## Module Dependencies
+
+```
+orchestration → order, payment, fulfillment (all public APIs)
+payment       → order (OrderService public API only)
+fulfillment   → payment (PaymentProcessedEvent public record)
+order         → (none)
+```
+
+## Running Locally
+
+```bash
+cd compose
+cp .env.example .env  # set POSTGRES_PASSWORD
+docker compose up -d
+# Wait ~2 minutes for Temporal + Elasticsearch to be ready
+# App available at http://localhost:8080
+```
