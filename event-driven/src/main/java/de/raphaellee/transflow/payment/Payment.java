@@ -1,5 +1,6 @@
 package de.raphaellee.transflow.payment;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -22,7 +23,7 @@ class Payment {
     protected Payment() {}
 
     Payment(UUID orderId, String status, String scenario) {
-        this.id = UUID.randomUUID();
+        this.id = UuidCreator.getTimeOrderedEpoch();
         this.orderId = orderId;
         this.status = status;
         this.scenario = scenario;
