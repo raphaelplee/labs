@@ -10,7 +10,7 @@ class Payment {
     @Id
     private UUID id;
 
-    @Column(updatable = false)
+    @Column(name = "order_id", updatable = false, nullable = false)
     private UUID orderId;
 
     private String status;

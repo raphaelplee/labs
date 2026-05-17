@@ -37,6 +37,7 @@ class PaymentModuleTest {
 
         var payment = paymentService.failPayment(order.orderId());
 
+        assertThat(payment.orderId()).isEqualTo(order.orderId());
         assertThat(payment.status()).isEqualTo("FAILED");
     }
 
