@@ -1,7 +1,7 @@
 package de.raphaellee.transflow.fulfillment;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
+import org.hibernate.annotations.UuidGenerator;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,6 +9,7 @@ import java.util.UUID;
 @Table(schema = "transflow", name = "fulfillment_records")
 class FulfillmentRecord {
     @Id
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
     private UUID id;
 
     @Column(name = "order_id", updatable = false, nullable = false)
@@ -25,7 +26,6 @@ class FulfillmentRecord {
     protected FulfillmentRecord() {}
 
     FulfillmentRecord(UUID orderId, String subscriptionId) {
-        this.id = UuidCreator.getTimeOrderedEpoch();
         this.orderId = orderId;
         this.subscriptionId = subscriptionId;
         this.status = "FULFILLED";

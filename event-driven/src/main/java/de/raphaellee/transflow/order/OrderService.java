@@ -1,6 +1,5 @@
 package de.raphaellee.transflow.order;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -22,10 +21,10 @@ public class OrderService {
     public OrderResponse createOrder(String subscriptionId) {
         repository.findBySubscriptionId(subscriptionId).ifPresent(existing -> {
             throw new IllegalStateException(
-                "Active order already exists for subscriptionId: " + subscriptionId);
+                "An active order already exists for this subscription");
         });
 
-        var order = new Order(UuidCreator.getTimeOrderedEpoch(), subscriptionId);
+        var order = new Order(subscriptionId);
         repository.save(order);
         publisher.publishEvent(new OrderCreatedEvent(order.getId().toString(), subscriptionId));
 

@@ -1,6 +1,7 @@
 package de.raphaellee.transflow.order;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.UuidGenerator;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -8,6 +9,7 @@ import java.util.UUID;
 @Table(schema = "transflow", name = "orders")
 class Order {
     @Id
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
     private UUID id;
 
     @Column(unique = true)
@@ -20,8 +22,7 @@ class Order {
 
     protected Order() {}
 
-    Order(UUID id, String subscriptionId) {
-        this.id = id;
+    Order(String subscriptionId) {
         this.subscriptionId = subscriptionId;
         this.status = "CREATED";
         this.createdAt = Instant.now();

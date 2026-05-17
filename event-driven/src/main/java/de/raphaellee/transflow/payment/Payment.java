@@ -1,7 +1,7 @@
 package de.raphaellee.transflow.payment;
 
-import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
+import org.hibernate.annotations.UuidGenerator;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -9,6 +9,7 @@ import java.util.UUID;
 @Table(schema = "transflow", name = "payments")
 class Payment {
     @Id
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
     private UUID id;
 
     @Column(name = "order_id", updatable = false, nullable = false)
@@ -23,7 +24,6 @@ class Payment {
     protected Payment() {}
 
     Payment(UUID orderId, String status, String scenario) {
-        this.id = UuidCreator.getTimeOrderedEpoch();
         this.orderId = orderId;
         this.status = status;
         this.scenario = scenario;
