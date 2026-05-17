@@ -1,3 +1,4 @@
+# compose/docker-compose.yml
 services:
   caddy:
     image: caddy:2
@@ -10,21 +11,157 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+    mem_limit: 64m
 
   postgres:
-    image: postgres:17
+    image: postgres:17.10
     restart: always
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    mem_limit: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
 
+  adminer:
+    image: adminer:4
+    restart: always
+    mem_limit: 64m
+    # Not exposed via Caddy — access via: ssh -L 5050:adminer:8080 user@raphaellee.de
+
+  elasticsearch:
+    image: elasticsearch:8.17.0
+    restart: always
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx1g"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  kafka:
+    image: apache/kafka:4.2.0
+    restart: always
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list 2>/dev/null && echo OK || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+
+  kafka-init:
+    image: apache/kafka:4.2.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+      kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic order.created &&
+      kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic payment.processed &&
+      kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic payment.failed &&
+      kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic fulfillment.completed &&
+      echo 'Topics created'
+      "
+    restart: "no"
+
+  kafka-ui:
+    image: kafbat/kafka-ui:v1.3.0
+    restart: always
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      SERVER_PORT: 8090
+    depends_on:
+      kafka:
+        condition: service_healthy
+    mem_limit: 256m
+
+  temporal:
+    image: temporalio/auto-setup:1.29.6.1
+    restart: always
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=${POSTGRES_PASSWORD}
+      - POSTGRES_SEEDS=postgres
+      - ENABLE_ES=true
+      - ES_SEEDS=elasticsearch
+      - ES_PORT=9200
+      - ES_VERSION=v8
+      - ES_SCHEME=http
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "temporal", "operator", "namespace", "describe", "--address", "localhost:7233", "--namespace", "default"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+  temporal-ui:
+    image: temporalio/ui:2.29.2
+    restart: always
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_UI_PORT: 8233
+    depends_on:
+      temporal:
+        condition: service_healthy
+    mem_limit: 128m
+
+  transflow-core:
+    build:
+      context: ..
+      dockerfile: event-driven/Dockerfile
+    restart: always
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      TEMPORAL_ADDRESS: temporal:7233
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_OPTS: "-Xmx400m"
+    depends_on:
+      temporal:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    mem_limit: 512m
+
 volumes:
   caddy_data:
   caddy_config:
   postgres_data:
+  elasticsearch_data:
+  kafka_data:

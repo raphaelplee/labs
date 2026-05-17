@@ -3,7 +3,21 @@ raphaellee.de {
 }
 
 transflow.raphaellee.de {
-  respond "coming soon" 200
+  reverse_proxy transflow-core:8080
+}
+
+temporal.raphaellee.de {
+  basic_auth {
+    demo {env.CADDY_DEMO_PASSWORD_HASH}
+  }
+  reverse_proxy temporal-ui:8233
+}
+
+kafka.raphaellee.de {
+  basic_auth {
+    demo {env.CADDY_DEMO_PASSWORD_HASH}
+  }
+  reverse_proxy kafka-ui:8090
 }
 
 dashboard.raphaellee.de {
