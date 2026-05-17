@@ -1,5 +1,6 @@
 package de.raphaellee.transflow.fulfillment;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
@@ -24,7 +25,7 @@ class FulfillmentRecord {
     protected FulfillmentRecord() {}
 
     FulfillmentRecord(UUID orderId, String subscriptionId) {
-        this.id = UUID.randomUUID();
+        this.id = UuidCreator.getTimeOrderedEpoch();
         this.orderId = orderId;
         this.subscriptionId = subscriptionId;
         this.status = "FULFILLED";
