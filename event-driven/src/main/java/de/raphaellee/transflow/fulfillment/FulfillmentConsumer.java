@@ -41,7 +41,7 @@ class FulfillmentConsumer {
         try {
             workflowClient.newUntypedWorkflowStub(workflowId).signal("fulfillmentDone");
             log.info("FULFILLMENT_DONE signal sent — workflowId={}", workflowId);
-        } catch (io.temporal.client.WorkflowNotFoundException e) {
+        } catch (WorkflowNotFoundException e) {
             log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded (fulfillment record retained as audit trail)", workflowId);
         }
     }

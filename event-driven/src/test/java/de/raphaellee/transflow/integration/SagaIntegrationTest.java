@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -44,7 +44,7 @@ class SagaIntegrationTest {
     }
 
     // Mock Temporal — these tests cover order/payment REST API, not the full saga wire
-    @MockBean
+    @MockitoBean
     WorkflowClient workflowClient;
 
     @Autowired
