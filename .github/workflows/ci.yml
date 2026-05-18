@@ -17,3 +17,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
       - run: mvn test -P skip-integration-tests --no-transfer-progress
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Hetzner
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          install -m 600 /dev/null ~/.ssh/deploy_key
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=no \
+              root@$DEPLOY_HOST \
+              'cd /root/labs && git pull && cd compose && docker compose up -d --build transflow-core'
