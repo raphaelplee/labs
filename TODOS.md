@@ -4,6 +4,32 @@ Deferred items from the /plan-ceo-review session on 2026-05-14.
 
 ---
 
+## P2 — Do soon after Weekend 3
+
+### Full DESIGN.md with design system documentation
+
+**What:** Expand `event-driven/DESIGN.md` beyond the current auth-PR scope to document
+the complete design system: spacing scale, component inventory, typography rationale,
+animation patterns (pulse keyframe for RUNNING dots), and the badge color system per saga
+state. Add a "decisions deferred" section for known design debt (mobile layout, full
+Keycloak theme).
+
+**Why:** The CSS custom properties introduced in the auth PR establish the token system,
+but there's no written intent behind the choices. Future UI additions (e.g., HTMX
+frontend, Weekend 3 notification toasts) need a reference to maintain visual consistency
+without having to reverse-engineer the index.html CSS.
+
+**Context:** Flagged during `/plan-design-review` on 2026-05-18. The auth PR creates the
+`:root` block with all tokens — the DESIGN.md expansion is low effort at that point since
+the tokens already have names.
+
+**Where to start:** `event-driven/DESIGN.md` — expand the "Color Token System" and
+"Existing Component Patterns" sections. Add a spacing/sizing section.
+
+**Effort:** XS (human ~20 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 3 (auth PR) complete
+
+---
+
 ## P2 — Do soon after Weekend 5
 
 ### Kafka Dead Letter Queue (DLQ) for deserialization failures

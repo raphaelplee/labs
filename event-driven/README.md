@@ -53,6 +53,25 @@ fulfillment   → payment (PaymentProcessedEvent public record)
 order         → (none)
 ```
 
+## Why Temporal + Kafka + Spring Modulith Together?
+
+**Spring Modulith** enforces bounded contexts inside a single JVM. Four modules with
+ArchUnit-verified boundaries — no accidental cross-module imports. Easier to reason
+about than microservices; harder to accidentally couple than a flat package structure.
+
+**Temporal** manages the saga state machine. Workflow history is durable — if the
+JVM restarts mid-saga, execution resumes from the last checkpoint. Without Temporal,
+you'd build that recovery logic yourself (and get it wrong under concurrent load).
+
+**Kafka** is the external integration surface, not the internal bus. Intra-app events
+use Spring Modulith's `@ApplicationModuleListener` (in-process, transactional).
+Kafka carries events that cross process boundaries — a future Rust IoT service or
+Go analytics consumer can subscribe to `payment.processed` without touching this JVM.
+
+The combination answers a common design question: when do you use the message broker
+vs the workflow engine? Kafka = fan-out to unknown consumers. Temporal = orchestrate
+a known sequence with compensation and timeout. They solve different problems.
+
 ## Running Locally
 
 ```bash
