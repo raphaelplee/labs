@@ -1,6 +1,7 @@
 # Weekend 3 Design — Keycloak OAuth2 Auth + UI Toasts
 
 **Date:** 2026-05-18
+**Revised:** 2026-05-19 (post eng review)
 **Status:** Approved
 **Module:** `event-driven` (`transflow-core`)
 **Live demo:** `transflow.raphaellee.de`
@@ -27,9 +28,9 @@ Shared Postgres:
   keycloak database added to existing postgres container (no new container)
 
 Memory budget:
-  Keycloak: mem_limit: 512m
-  Previous total: ~3.3 GB → New total: ~3.8 GB
-  Leaves ~4.2 GB for OS + headroom on 8 GB CPX32
+  Keycloak: mem_limit: 768m   (JVM + Quarkus baseline ~350-400 MB idle; first-login JIT spikes)
+  Previous total: ~3.3 GB → New total: ~4.0 GB
+  Leaves ~4.0 GB for OS + headroom on 8 GB CPX32
 ```
 
 ### Protection Model
@@ -65,31 +66,60 @@ New `keycloak` service added to `compose/docker-compose.yml`:
 keycloak:
   image: quay.io/keycloak/keycloak:26
   restart: always
-  command: start
+  command: start-dev
   environment:
     KC_DB: postgres
     KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
     KC_DB_USERNAME: postgres
     KC_DB_PASSWORD: ${POSTGRES_PASSWORD}
     KC_HOSTNAME: auth.raphaellee.de
-    KC_HTTP_ENABLED: "false"
-    KC_PROXY_HEADERS: xforwarded
+    KC_HTTP_ENABLED: "true"       # required — Caddy reverse proxies over HTTP internally
+    KC_PROXY_HEADERS: xforwarded  # Keycloak reports HTTPS externally via X-Forwarded headers
     KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
     KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+  volumes:
+    - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+  command: start-dev --import-realm
   depends_on:
     postgres:
       condition: service_healthy
-  mem_limit: 512m
+  healthcheck:
+    test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+    interval: 15s
+    timeout: 10s
+    retries: 10
+    start_period: 60s
+  mem_limit: 768m
 ```
 
-Postgres init script extended to create the `keycloak` database on first boot:
+`transflow-core`'s `depends_on` extended:
+
+```yaml
+transflow-core:
+  depends_on:
+    temporal:
+      condition: service_healthy
+    keycloak:
+      condition: service_healthy   # wait for Keycloak OIDC discovery document to be ready
+```
+
+**Postgres volume mount** extended in the `postgres` service:
+
+```yaml
+postgres:
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+    - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql  # creates keycloak DB on first boot
+```
+
+`compose/postgres/init.sql` (new file):
 
 ```sql
--- compose/postgres/init.sql (new file, mounted via volume)
 CREATE DATABASE keycloak;
 ```
 
 New env vars in `compose/.env.example`:
+
 ```
 KEYCLOAK_ADMIN=admin
 KEYCLOAK_ADMIN_PASSWORD=changeme
@@ -104,17 +134,19 @@ New route added to `compose/Caddyfile`:
 
 ```
 auth.raphaellee.de {
-  reverse_proxy keycloak:8180
+  reverse_proxy keycloak:8080
 }
 ```
 
-OIDC endpoints (`.well-known/openid-configuration`, `/protocol/openid-connect/*`) are public — required for the OAuth2 flow. Keycloak admin console (`/admin/*`) is protected by Keycloak's own admin credentials; no Caddy `basic_auth` needed.
+Note: Keycloak `start-dev` listens on port 8080 (not 8180 which is the HTTPS port). OIDC endpoints (`.well-known/openid-configuration`, `/protocol/openid-connect/*`) are public — required for the OAuth2 flow. Keycloak admin console (`/admin/*`) is protected by Keycloak's own admin credentials; no Caddy `basic_auth` needed.
 
 ---
 
-## Keycloak Realm Setup (Manual — between PR 1 and PR 2)
+## Keycloak Realm Setup
 
-Configured via admin console at `auth.raphaellee.de/admin` after PR 1 deploys.
+### Initial Setup (Manual — after PR 1 deploys)
+
+Configure via admin console at `auth.raphaellee.de/admin` after PR 1 deploys and Keycloak is healthy.
 
 ```
 Realm:         transflow
@@ -131,6 +163,16 @@ Login page info block:
   "Demo credentials: demo / demo123"
   (configured as realm login theme info text)
 ```
+
+### Realm Export (required — makes setup reproducible)
+
+After completing the manual setup:
+
+1. Keycloak admin → `transflow` realm → Realm settings → Export → export with clients
+2. Save as `compose/keycloak/realm-export.json`
+3. Commit the export file
+
+On subsequent `docker compose up` (or server rebuild), Keycloak imports the realm automatically via `--import-realm`. The `KEYCLOAK_CLIENT_SECRET` stays in `compose/.env` — not in the export.
 
 Copy the generated `KEYCLOAK_CLIENT_SECRET` into `compose/.env` before starting PR 2.
 
@@ -219,7 +261,7 @@ Right side of existing nav bar extended:
 
 ### 401 Mid-Session Banner
 
-Shown when any API call returns 401 (session expired mid-session):
+Shown when any API call returns 401 (session expired mid-session — distinct from first visit which redirects via oauth2Login):
 
 ```
 Session expired — Sign in again   ✕
@@ -229,6 +271,10 @@ Session expired — Sign in again   ✕
 - `role="alert" aria-live="assertive"` — screen readers announce immediately
 - Dismissible (✕ button)
 - Replaces any existing `alert()` error handling for 401 responses
+
+### 403 Handling
+
+A 403 response means the XSRF-TOKEN cookie is stale (e.g., page sat open, cache cleared). Retrying without a refresh fails identically. On any 403 response: call `window.location.reload()`. This refreshes the CSRF token and re-enables the buttons with no user-visible error message.
 
 ### CSRF Helper
 
@@ -253,7 +299,7 @@ Position: bottom-right, stacked, max 3 visible, auto-dismiss after 4 seconds.
 | Saga trigger success | "Saga started" | `var(--accent-green)` |
 | Payment confirmed | "Payment confirmed" | `var(--accent-green)` |
 | Payment failed (intentional) | "Payment failed — compensation triggered" | `var(--accent-orange)` |
-| API error (non-401) | "Request failed — try again" | `var(--accent-red)` |
+| API error (non-401, non-403) | "Request failed — try again" | `var(--accent-red)` |
 
 Toast component: vanilla JS, no framework. New `#toast-container` div appended to `<body>`. Each toast is a `<div>` with `role="status"` for screen reader compatibility. Auto-dismissed via `setTimeout`. Stacking: newest toast appends below existing ones.
 
@@ -270,17 +316,28 @@ One sentence added to the existing architecture blurb:
 ### Unit Tests (`@Tag("unit")` — fast path, no containers)
 
 - `SecurityConfigTest` (`@WebMvcTest`): unauthenticated `GET /api/sagas` → 302 redirect (not 401)
-- `MeControllerTest` (`@WebMvcTest` + `@WithMockUser`): `GET /api/me` → `{ "username": "user" }`
+- `MeControllerTest` (`@WebMvcTest` + `@WithOidcLogin(claims = @OidcClaims(preferredUsername = "demo"))`): `GET /api/me` → `{ "username": "demo" }`
+
+Note: `@WithMockUser` injects a `UsernamePasswordAuthenticationToken`, not an `OidcUser`. `@WithOidcLogin` is required for any controller that reads OIDC claims.
 
 ### Integration Tests (`@Tag("integration")`)
 
 Keycloak Testcontainer (`dasniko/testcontainers-keycloak`) added to existing integration test setup.
 
+`@DynamicPropertySource` overrides the issuer URI in integration tests:
+
+```java
+@DynamicPropertySource
+static void keycloakProperties(DynamicPropertyRegistry registry) {
+  registry.add("spring.security.oauth2.client.provider.keycloak.issuer-uri",
+    () -> keycloakContainer.getAuthServerUrl() + "/realms/transflow");
+}
+```
+
+Tests:
 - Unauthenticated `POST /api/orders` → 302
 - Authenticated `POST /api/orders` → 201 (existing test extended to obtain Keycloak token first)
 - CSRF: `POST /api/orders` with session but missing `X-XSRF-TOKEN` → 403
-
-Existing integration tests that make POST requests need one change: obtain a Keycloak token from the Testcontainer before the request.
 
 No new CI workflow needed — existing `integration-tests.yml` picks up the new tests automatically.
 
@@ -290,13 +347,18 @@ No new CI workflow needed — existing `integration-tests.yml` picks up the new 
 
 | PR | Branch | Content | Depends on |
 |---|---|---|---|
-| 1 | `feat/keycloak-compose` | Keycloak service + Caddy `auth.raphaellee.de` route + Postgres `keycloak` DB init | — |
-| 2 | `feat/spring-security-oauth2` | `SecurityConfig` + `MeController` + `application.yml` + unit + integration tests | PR 1 merged + Keycloak realm configured manually |
-| 3 | `feat/auth-ui` | Nav bar (username + sign out) + 401 banner + toasts + CSRF helper + blurb update | PR 1 merged |
+| 1 | `feat/keycloak-compose` | Keycloak service + healthcheck + Caddy `auth.raphaellee.de` route + Postgres init.sql + volume mount | — |
+| 2 | `feat/spring-security-oauth2` | `SecurityConfig` + `MeController` + `application.yml` + unit + integration tests | PR 1 merged + Keycloak realm configured + realm-export.json committed |
+| 3 | `feat/auth-ui` | Nav bar + 401 banner + 403 reload + toasts + CSRF helper + blurb update | PR 2 merged |
 
-PRs 2 and 3 are independent of each other — open in parallel after PR 1 merges.
+PR 3 code can be written in parallel with PR 2 but **must merge after PR 2** — CSRF cookies are not issued and `GET /api/me` returns 401 until Spring Security is active.
 
-**Manual step between PR 1 and PR 2:** Configure `transflow` realm, `transflow-core` client, and `demo` user via Keycloak admin console at `auth.raphaellee.de/admin`. Copy generated `KEYCLOAK_CLIENT_SECRET` into `compose/.env`.
+**Steps between PR 1 and PR 2:**
+1. Deploy PR 1 to server
+2. Configure realm manually via `auth.raphaellee.de/admin`
+3. Export realm → commit as `compose/keycloak/realm-export.json`
+4. Copy `KEYCLOAK_CLIENT_SECRET` to `compose/.env`
+5. Open PR 2
 
 ---
 
@@ -306,11 +368,13 @@ PRs 2 and 3 are independent of each other — open in parallel after PR 1 merges
 - Login page shows "Demo credentials: demo / demo123"
 - After login: dashboard renders with `demo` username in nav bar
 - All trigger buttons fire correctly with CSRF token — sagas run end-to-end
+- Stale CSRF token → page reloads silently, buttons re-enable, next trigger succeeds
 - "Sign out" clears session → returns to Keycloak login page
 - Session expiry mid-session → 401 banner appears, not a broken UI
-- Toast appears on each trigger action (success and error cases)
+- Toast appears on each trigger action (success and intentional failure cases)
 - `auth.raphaellee.de` resolves and Keycloak admin console is accessible
 - `temporal.raphaellee.de` and `kafka.raphaellee.de` remain accessible via existing Caddy `basic_auth`
+- `docker compose down -v && docker compose up` → Keycloak imports realm automatically, no manual steps
 - Unit tests green in fast CI
 - Integration tests green in `integration-tests` CI job
 
@@ -339,8 +403,23 @@ Same pattern, but Apple uses a JWT-based client secret (generated from a `.p8` k
 |---|---|
 | Keycloak RP-Initiated Logout | `POST /logout` is sufficient for a demo |
 | Custom Keycloak login page theme | Default theme + info text block is enough |
-| Keycloak behind Caddy `basic_auth` | Admin console protected by Keycloak's own admin credentials |
+| Keycloak `start` (production mode) | Requires pre-built image; `start-dev` is correct for a single-realm demo |
 | Spring Authorization Server | Keycloak chosen for name recognition in German enterprise/fintech context |
 | Temporal UI / Kafka UI behind Keycloak | Existing Caddy `basic_auth` retained — no change |
-| Notification toasts beyond trigger events | Session expiry handled by 401 banner; no other toast cases needed |
+| Notification toasts beyond trigger events | Session expiry handled by 401 banner; 403 handled by page reload |
 | Mobile responsive redesign | Auth adds only nav truncation fix (hide username < 600px) |
+
+---
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 6 issues found, 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | Captured in event-driven/DESIGN.md |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+- **UNRESOLVED:** 0
+- **VERDICT:** ENG CLEARED — ready to implement
