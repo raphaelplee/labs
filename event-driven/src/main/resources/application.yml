@@ -53,3 +53,4 @@ springdoc:
     display-request-duration: true
     disable-swagger-default-url: true
   writer-with-default-pretty-printer: true
+  override-with-generic-response: false  # prevent GlobalExceptionHandler responses from being injected into every endpoint
