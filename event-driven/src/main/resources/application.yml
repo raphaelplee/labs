@@ -18,18 +18,15 @@ spring:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "de.raphaellee.transflow.*"
         max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
     producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
   temporal:
     connection:
       target: ${TEMPORAL_ADDRESS:localhost:7233}
-    namespace: default
     workers:
       - task-queue: ${temporal.task-queue:subscription-saga-queue}
         workflow-classes:
