@@ -141,9 +141,7 @@ services:
     mem_limit: 128m
 
   transflow-core:
-    build:
-      context: ..
-      dockerfile: event-driven/Dockerfile
+    image: ghcr.io/raphaelplee/transflow-core:main
     restart: always
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
