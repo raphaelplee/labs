@@ -40,7 +40,7 @@ class OrderCreatedConsumer {
         var workflow = workflowClient.newWorkflowStub(SubscriptionSagaWorkflow.class, options);
 
         try {
-            WorkflowClient.start(workflow::run, event.orderId(), event.subscriptionId(), fulfillmentTimeoutSeconds);
+            WorkflowClient.start(workflow::run, event.orderId().toString(), event.subscriptionId(), fulfillmentTimeoutSeconds);
         } catch (WorkflowExecutionAlreadyStarted e) {
             log.info("Saga already running for workflowId={} — idempotent, skipping", workflowId);
         }

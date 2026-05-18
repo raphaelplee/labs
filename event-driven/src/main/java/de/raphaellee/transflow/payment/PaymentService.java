@@ -28,7 +28,7 @@ public class PaymentService {
         var payment = new Payment(orderId, "PROCESSED", resolved);
         repository.save(payment);
         publisher.publishEvent(new PaymentProcessedEvent(
-            orderId.toString(), order.subscriptionId(), resolved));
+            orderId, order.subscriptionId(), resolved));
         return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getStatus());
     }
 
@@ -39,7 +39,7 @@ public class PaymentService {
         var order = orderService.getOrder(orderId);
         var payment = new Payment(orderId, "FAILED", null);
         repository.save(payment);
-        publisher.publishEvent(new PaymentFailedEvent(orderId.toString(), order.subscriptionId()));
+        publisher.publishEvent(new PaymentFailedEvent(orderId, order.subscriptionId()));
         return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getStatus());
     }
 }

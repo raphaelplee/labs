@@ -26,7 +26,7 @@ public class OrderService {
 
         var order = new Order(subscriptionId);
         repository.save(order);
-        publisher.publishEvent(new OrderCreatedEvent(order.getId().toString(), subscriptionId));
+        publisher.publishEvent(new OrderCreatedEvent(order.getId(), subscriptionId));
 
         return new OrderResponse(order.getId(), order.getSubscriptionId(), order.getStatus(), order.getCreatedAt());
     }

@@ -1,5 +1,7 @@
 package de.raphaellee.transflow.orchestration;
 
+import io.temporal.client.WorkflowClient;
+import io.temporal.client.WorkflowOptions;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.testing.TestWorkflowExtension;
 import io.temporal.worker.Worker;
@@ -21,85 +23,55 @@ class SubscriptionSagaWorkflowTest {
         .setDoNotStart(false)
         .build();
 
-    @Test
-    void paymentOk_advancesToFulfillmentProcessing(TestWorkflowEnvironment env, Worker worker,
-                                                    SubscriptionSagaWorkflow workflow) {
-        // Start workflow async
+    /** Creates and starts a saga workflow stub asynchronously. Returns the stub for signalling and querying. */
+    private SubscriptionSagaWorkflow startSaga(TestWorkflowEnvironment env, Worker worker, String workflowId) {
         var stub = env.getWorkflowClient()
             .newWorkflowStub(SubscriptionSagaWorkflow.class,
-                io.temporal.client.WorkflowOptions.newBuilder()
+                WorkflowOptions.newBuilder()
                     .setTaskQueue(worker.getTaskQueue())
-                    .setWorkflowId("test-saga-1")
+                    .setWorkflowId(workflowId)
                     .build());
+        WorkflowClient.start(stub::run, "order-" + workflowId, UUID.randomUUID(), 30);
+        return stub;
+    }
 
-        io.temporal.client.WorkflowClient.start(stub::run, "order-1", UUID.fromString("00000000-0000-0000-0000-000000000001"), 30);
+    /** Blocks until the given workflow run completes. */
+    private void awaitCompletion(TestWorkflowEnvironment env, String workflowId) {
+        env.getWorkflowClient()
+            .newUntypedWorkflowStub(workflowId)
+            .getResult(Void.class);
+    }
 
-        // Signal PAYMENT_OK
+    @Test
+    void paymentOk_advancesToFulfillmentProcessing(TestWorkflowEnvironment env, Worker worker) {
+        var stub = startSaga(env, worker, "test-saga-1");
         stub.paymentOk();
-
-        // Query status — should be FULFILLMENT_PROCESSING
         assertThat(stub.getStatus()).isEqualTo("FULFILLMENT_PROCESSING");
     }
 
     @Test
     void paymentFailed_reachesPaymentFailedEndState(TestWorkflowEnvironment env, Worker worker) {
-        var stub = env.getWorkflowClient()
-            .newWorkflowStub(SubscriptionSagaWorkflow.class,
-                io.temporal.client.WorkflowOptions.newBuilder()
-                    .setTaskQueue(worker.getTaskQueue())
-                    .setWorkflowId("test-saga-2")
-                    .build());
-
-        io.temporal.client.WorkflowClient.start(stub::run, "order-2", UUID.fromString("00000000-0000-0000-0000-000000000002"), 30);
+        var stub = startSaga(env, worker, "test-saga-2");
         stub.paymentFailed();
-
-        // Workflow should complete with PAYMENT_FAILED
-        env.getWorkflowClient()
-            .newUntypedWorkflowStub("test-saga-2")
-            .getResult(String.class); // blocks until workflow completes
-
+        awaitCompletion(env, "test-saga-2");
         assertThat(stub.getStatus()).isEqualTo("PAYMENT_FAILED");
     }
 
     @Test
     void paymentOkThenFulfillmentDone_reachesCompleted(TestWorkflowEnvironment env, Worker worker) {
-        var stub = env.getWorkflowClient()
-            .newWorkflowStub(SubscriptionSagaWorkflow.class,
-                io.temporal.client.WorkflowOptions.newBuilder()
-                    .setTaskQueue(worker.getTaskQueue())
-                    .setWorkflowId("test-saga-3")
-                    .build());
-
-        io.temporal.client.WorkflowClient.start(stub::run, "order-3", UUID.fromString("00000000-0000-0000-0000-000000000003"), 30);
+        var stub = startSaga(env, worker, "test-saga-3");
         stub.paymentOk();
         stub.fulfillmentDone();
-
-        env.getWorkflowClient()
-            .newUntypedWorkflowStub("test-saga-3")
-            .getResult(String.class);
-
+        awaitCompletion(env, "test-saga-3");
         assertThat(stub.getStatus()).isEqualTo("COMPLETED");
     }
 
     @Test
     void paymentOkThenTimerFires_reachesTimedOut(TestWorkflowEnvironment env, Worker worker) {
-        var stub = env.getWorkflowClient()
-            .newWorkflowStub(SubscriptionSagaWorkflow.class,
-                io.temporal.client.WorkflowOptions.newBuilder()
-                    .setTaskQueue(worker.getTaskQueue())
-                    .setWorkflowId("test-saga-4")
-                    .build());
-
-        io.temporal.client.WorkflowClient.start(stub::run, "order-4", UUID.fromString("00000000-0000-0000-0000-000000000004"), 30);
+        var stub = startSaga(env, worker, "test-saga-4");
         stub.paymentOk();
-
-        // Skip time past the 30s fulfillment timeout
         env.sleep(Duration.ofSeconds(31));
-
-        env.getWorkflowClient()
-            .newUntypedWorkflowStub("test-saga-4")
-            .getResult(String.class);
-
+        awaitCompletion(env, "test-saga-4");
         assertThat(stub.getStatus()).isEqualTo("TIMED_OUT");
     }
 }

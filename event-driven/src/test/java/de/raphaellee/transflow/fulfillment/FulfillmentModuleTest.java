@@ -49,11 +49,11 @@ class FulfillmentModuleTest {
 
     @Test
     void complete_savesFulfillmentRecord() {
-        var orderId = UUID.randomUUID().toString();
+        var orderId = UUID.randomUUID();
         var result = fulfillmentService.complete(orderId, UUID.randomUUID());
 
         assertThat(result.status()).isEqualTo("FULFILLED");
-        assertThat(result.orderId().toString()).isEqualTo(orderId);
+        assertThat(result.orderId()).isEqualTo(orderId);
     }
 
     @Test

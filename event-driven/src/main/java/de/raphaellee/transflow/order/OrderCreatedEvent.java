@@ -5,4 +5,4 @@ import org.springframework.modulith.events.Externalized;
 import java.util.UUID;
 
 @Externalized("order.created")
-public record OrderCreatedEvent(String orderId, UUID subscriptionId) {}
+public record OrderCreatedEvent(UUID orderId, UUID subscriptionId) {}

@@ -19,13 +19,12 @@ public class FulfillmentService {
     }
 
     @Transactional
-    public FulfillmentResponse complete(String orderIdStr, UUID subscriptionId) {
-        var orderId = UUID.fromString(orderIdStr);
+    public FulfillmentResponse complete(UUID orderId, UUID subscriptionId) {
         var record = new FulfillmentRecord(orderId, subscriptionId);
         repository.save(record);
 
         publisher.publishEvent(new FulfillmentCompletedEvent(
-            record.getId().toString(), orderIdStr, subscriptionId));
+            record.getId(), orderId, subscriptionId));
 
         return toResponse(record);
     }

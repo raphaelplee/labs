@@ -12,24 +12,14 @@ import java.util.UUID;
 class SagaStatusMapper {
 
     SagaStatus fromExecutionInfo(WorkflowExecutionInfo info) {
-        String workflowId = info.getExecution().getWorkflowId();
-        UUID subscriptionId = workflowId.startsWith("saga-")
-            ? UUID.fromString(workflowId.substring(5))
-            : UUID.fromString(workflowId);
-
-        String status = mapStatus(info.getStatus());
-        Instant startedAt = Instant.ofEpochSecond(
-            info.getStartTime().getSeconds(), info.getStartTime().getNanos());
-        Instant updatedAt = info.hasCloseTime()
-            ? Instant.ofEpochSecond(info.getCloseTime().getSeconds(), info.getCloseTime().getNanos())
-            : Instant.now();
-
-        return new SagaStatus(workflowId, subscriptionId, status, null,
-            startedAt, updatedAt, deriveSteps(status), null);
+        return toSagaStatus(info);
     }
 
     SagaStatus fromDescribeResponse(DescribeWorkflowExecutionResponse resp) {
-        var info = resp.getWorkflowExecutionInfo();
+        return toSagaStatus(resp.getWorkflowExecutionInfo());
+    }
+
+    private SagaStatus toSagaStatus(WorkflowExecutionInfo info) {
         String workflowId = info.getExecution().getWorkflowId();
         UUID subscriptionId = workflowId.startsWith("saga-")
             ? UUID.fromString(workflowId.substring(5))
