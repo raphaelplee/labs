@@ -316,6 +316,23 @@ PRs 2 and 3 are independent of each other — open in parallel after PR 1 merges
 
 ---
 
+## Extensibility — Social Login (Google, Apple)
+
+Keycloak acts as an identity broker. Adding Google Sign-In or Apple Sign-In requires zero Spring Boot code changes — configuration is entirely in the Keycloak admin console.
+
+**To add Google Sign-In:**
+1. Create OAuth2 credentials in Google Cloud Console (`client_id` + `client_secret`)
+2. In Keycloak admin → `transflow` realm → Identity Providers → Add → Google
+3. Enter the Google credentials. Keycloak handles the redirect flow.
+4. Done. Spring Boot continues talking to Keycloak via the same `authorization_code` flow — it never sees Google directly.
+
+**To add Apple Sign-In:**
+Same pattern, but Apple uses a JWT-based client secret (generated from a `.p8` key file) instead of a plain `client_secret`. Keycloak has a built-in Apple Identity Provider that handles this. Slightly more setup, no code changes.
+
+**Why this matters:** The broker pattern means the identity source is decoupled from the application. Switching from demo credentials to corporate SSO (SAML, LDAP, Google Workspace) is a Keycloak configuration change — not a deployment. This is the correct architecture for any multi-tenant or enterprise-ready system.
+
+---
+
 ## NOT in Scope
 
 | Decision | Rationale |
