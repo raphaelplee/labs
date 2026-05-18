@@ -18,6 +18,8 @@
     <temporal.version>1.35.0</temporal.version>
     <spring-modulith.version>2.0.6</spring-modulith.version>
     <springdoc.version>3.0.3</springdoc.version>
+    <!-- Override Spring Boot BOM 42.7.10 — SCRAM-SHA-256 security fix in 42.7.11 -->
+    <postgresql.version>42.7.11</postgresql.version>
   </properties>
 
   <dependencyManagement>
@@ -95,6 +97,11 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

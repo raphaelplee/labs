@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -31,11 +32,13 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 class SagaFlowIntegrationTest {
 
     @Container
+    @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17.10");
 
     @Container
+    @ServiceConnection
     static KafkaContainer kafka = new KafkaContainer(
-        DockerImageName.parse("confluentinc/cp-kafka:7.6.0"));
+        DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
     @Container
     @SuppressWarnings("resource")
@@ -47,10 +50,6 @@ class SagaFlowIntegrationTest {
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         registry.add("spring.temporal.connection.target", () ->
             temporal.getHost() + ":" + temporal.getMappedPort(7233));
         registry.add("spring.temporal.start-workers", () -> "true");
