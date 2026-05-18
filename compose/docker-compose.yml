@@ -7,6 +7,8 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+    environment:
+      CADDY_DEMO_PASSWORD_HASH: ${CADDY_DEMO_PASSWORD_HASH}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
