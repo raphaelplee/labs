@@ -51,8 +51,9 @@ class SagaFlowIntegrationTest {
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
-        registry.add("temporal.address", () ->
+        registry.add("spring.temporal.connection.target", () ->
             temporal.getHost() + ":" + temporal.getMappedPort(7233));
+        registry.add("spring.temporal.start-workers", () -> "true");
     }
 
     @Autowired OrderService orderService;

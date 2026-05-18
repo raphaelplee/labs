@@ -26,10 +26,16 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+  temporal:
+    connection:
+      target: ${TEMPORAL_ADDRESS:localhost:7233}
+    namespace: default
+    workers:
+      - task-queue: ${temporal.task-queue:subscription-saga-queue}
+        workflow-classes:
+          - de.raphaellee.transflow.orchestration.SubscriptionSagaWorkflowImpl
 
 temporal:
-  address: ${TEMPORAL_ADDRESS:localhost:7233}
-  namespace: default
   task-queue: subscription-saga-queue
 
 saga:

@@ -20,7 +20,7 @@ class SagaController {
     private final WorkflowServiceStubs stubs;
     private final SagaStatusMapper mapper;
 
-    @Value("${temporal.namespace:default}")
+    @Value("${spring.temporal.namespace:default}")
     private String namespace;
 
     SagaController(WorkflowClient workflowClient, SagaStatusMapper mapper) {

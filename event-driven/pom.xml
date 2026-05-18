@@ -63,6 +63,11 @@
       <artifactId>temporal-sdk</artifactId>
       <version>${temporal.version}</version>
     </dependency>
+    <dependency>
+      <groupId>io.temporal</groupId>
+      <artifactId>temporal-spring-boot-autoconfigure</artifactId>
+      <version>${temporal.version}</version>
+    </dependency>
 
     <!-- Database -->
     <dependency>
