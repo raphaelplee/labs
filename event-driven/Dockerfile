@@ -1,10 +1,9 @@
+# Borrow Maven binary from the official image — avoids downloading it at build time
+FROM maven:3.9.9-eclipse-temurin-21 AS maven-binary
+
 FROM eclipse-temurin:25-jdk-jammy AS build
-ARG MAVEN_VERSION=3.9.9
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
-    && curl -fsSL https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz \
-       | tar xz -C /opt \
-    && ln -s /opt/apache-maven-${MAVEN_VERSION}/bin/mvn /usr/local/bin/mvn \
-    && apt-get remove -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+COPY --from=maven-binary /usr/share/maven /usr/share/maven
+ENV PATH="/usr/share/maven/bin:$PATH"
 WORKDIR /app
 COPY pom.xml .
 COPY event-driven/pom.xml event-driven/pom.xml

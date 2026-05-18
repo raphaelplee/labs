@@ -34,4 +34,4 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=no \
               root@$DEPLOY_HOST \
-              'cd /opt/labs && git pull && cd compose && docker compose up -d --build transflow-core'
+              'cd /opt/labs && git pull && cd compose && docker compose build --no-cache transflow-core && docker compose up -d transflow-core'
