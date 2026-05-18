@@ -71,6 +71,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           fingerprint: ${{ secrets.DEPLOY_HOST_FINGERPRINT }}
           script: |
-            cd /opt/labs/compose
+            cd /opt/labs && git pull
+            cd compose
             docker compose pull transflow-core
             docker compose up -d transflow-core
