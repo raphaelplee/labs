@@ -24,6 +24,7 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "de.raphaellee.transflow.*"
+        spring.json.use.type.headers: false  # Spring Modulith publishes with [B type header; use listener method type instead
         max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
     producer:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
