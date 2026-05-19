@@ -27,7 +27,7 @@ spring:
         spring.json.use.type.headers: false  # Spring Modulith publishes with [B type header; use listener method type instead
         max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
     producer:
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer  # Spring Modulith serializes events to JSON String first; StringSerializer sends raw JSON bytes
   temporal:
     connection:
       target: ${TEMPORAL_ADDRESS:localhost:7233}
