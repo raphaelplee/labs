@@ -8,9 +8,7 @@ public record SagaStatus(
     String sagaId,
     UUID subscriptionId,
     String status,
-    String scenario,
     Instant startedAt,
-    Instant updatedAt,
-    List<SagaStep> steps,
-    String error
+    Instant closedAt,
+    List<SagaStep> steps
 ) {}

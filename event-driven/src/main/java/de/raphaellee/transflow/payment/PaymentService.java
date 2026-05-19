@@ -24,11 +24,10 @@ public class PaymentService {
         // Note: orderService.getOrder() joins this transaction (REQUIRED propagation);
         // its readOnly hint is discarded — this outer transaction is read-write.
         var order = orderService.getOrder(orderId);
-        var resolved = scenario != null ? scenario : PaymentScenario.HAPPY_PATH;
-        var payment = new Payment(orderId, "PROCESSED", resolved);
+        var payment = new Payment(orderId, "PROCESSED", scenario);
         repository.save(payment);
         publisher.publishEvent(new PaymentProcessedEvent(
-            orderId, order.subscriptionId(), resolved));
+            orderId, order.subscriptionId(), scenario));
         return new PaymentResponse(payment.getId(), payment.getOrderId(), payment.getStatus());
     }
 
