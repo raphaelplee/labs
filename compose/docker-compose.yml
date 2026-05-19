@@ -51,7 +51,7 @@ services:
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms512m -Xmx1g"
+      ES_JAVA_OPTS: "-Xms256m -Xmx768m"
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     mem_limit: 1g
@@ -91,6 +91,7 @@ services:
   kafka-init:
     image: apache/kafka:4.2.0
     logging: *default-logging
+    mem_limit: 128m
     depends_on:
       kafka:
         condition: service_healthy

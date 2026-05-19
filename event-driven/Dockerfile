@@ -9,4 +9,4 @@ COPY --from=extractor /builder/extracted/dependencies/ ./
 COPY --from=extractor /builder/extracted/spring-boot-loader/ ./
 COPY --from=extractor /builder/extracted/snapshot-dependencies/ ./
 COPY --from=extractor /builder/extracted/application/ ./
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar application.jar"]
+ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS} -jar application.jar"]
