@@ -118,6 +118,7 @@ services:
       - ES_PORT=9200
       - ES_VERSION=v8
       - ES_SCHEME=http
+      - BIND_ON_IP=0.0.0.0
     depends_on:
       postgres:
         condition: service_healthy
