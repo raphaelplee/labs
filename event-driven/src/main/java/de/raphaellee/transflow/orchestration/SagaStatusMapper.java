@@ -11,21 +11,24 @@ import java.util.UUID;
 @Component
 class SagaStatusMapper {
 
-    SagaStatus fromExecutionInfo(WorkflowExecutionInfo info) {
-        return toSagaStatus(info);
+    SagaStatus fromExecutionInfo(WorkflowExecutionInfo info, String internalStatus) {
+        return toSagaStatus(info, internalStatus);
     }
 
-    SagaStatus fromDescribeResponse(DescribeWorkflowExecutionResponse resp) {
-        return toSagaStatus(resp.getWorkflowExecutionInfo());
+    SagaStatus fromDescribeResponse(DescribeWorkflowExecutionResponse resp, String internalStatus) {
+        return toSagaStatus(resp.getWorkflowExecutionInfo(), internalStatus);
     }
 
-    private SagaStatus toSagaStatus(WorkflowExecutionInfo info) {
+    private SagaStatus toSagaStatus(WorkflowExecutionInfo info, String internalStatus) {
         String workflowId = info.getExecution().getWorkflowId();
         UUID subscriptionId = workflowId.startsWith("saga-")
             ? UUID.fromString(workflowId.substring(5))
             : UUID.fromString(workflowId);
 
-        String status = mapStatus(info.getStatus());
+        // Prefer the queried internal status (accurate for all terminal states).
+        // The Temporal-level status cannot distinguish PAYMENT_FAILED from COMPLETED —
+        // both end with WORKFLOW_EXECUTION_STATUS_COMPLETED because the workflow returns normally.
+        String status = internalStatus != null ? internalStatus : mapStatus(info.getStatus());
         Instant startedAt = Instant.ofEpochSecond(
             info.getStartTime().getSeconds(), info.getStartTime().getNanos());
         // closedAt is null for running workflows — Instant.now() would differ on every call
@@ -51,16 +54,17 @@ class SagaStatusMapper {
 
     private List<SagaStep> deriveSteps(String status) {
         return switch (status) {
-            case "RUNNING" -> List.of(
+            // Internal saga states (from getStatus() query — precise)
+            case "AWAITING_PAYMENT" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
-                new SagaStep("IN_PROGRESS", "RUNNING")
+                new SagaStep("AWAITING_PAYMENT", "RUNNING")
             );
-            case "COMPLETED" -> List.of(
+            case "FULFILLMENT_PROCESSING" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
                 new SagaStep("AWAITING_PAYMENT", "COMPLETED"),
-                new SagaStep("FULFILLMENT_PROCESSING", "COMPLETED")
+                new SagaStep("FULFILLMENT_PROCESSING", "RUNNING")
             );
-            case "FAILED" -> List.of(
+            case "PAYMENT_FAILED" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
                 new SagaStep("PAYMENT_FAILED", "FAILED")
             );
@@ -68,6 +72,20 @@ class SagaStatusMapper {
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
                 new SagaStep("AWAITING_PAYMENT", "COMPLETED"),
                 new SagaStep("FULFILLMENT_PROCESSING", "TIMED_OUT")
+            );
+            case "COMPLETED" -> List.of(
+                new SagaStep("ORDER_CREATED", "COMPLETED"),
+                new SagaStep("AWAITING_PAYMENT", "COMPLETED"),
+                new SagaStep("FULFILLMENT_PROCESSING", "COMPLETED")
+            );
+            // Temporal-level fallbacks (when getStatus() query is unavailable)
+            case "RUNNING" -> List.of(
+                new SagaStep("ORDER_CREATED", "COMPLETED"),
+                new SagaStep("IN_PROGRESS", "RUNNING")
+            );
+            case "FAILED" -> List.of(
+                new SagaStep("ORDER_CREATED", "COMPLETED"),
+                new SagaStep("PAYMENT_FAILED", "FAILED")
             );
             case "CANCELED" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
