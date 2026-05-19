@@ -32,6 +32,8 @@ These topics are the **public integration surface** of transflow-core. A future 
 
 **Key convention:** none (null key). Messages are not keyed; ordering within a topic is not required.
 
+**Serialization:** Spring Modulith publishes via `ByteArraySerializer` — messages are raw JSON bytes with no type headers. Consumers use `JsonDeserializer` with `spring.json.use.type.headers=false`; the target type is inferred from the `@KafkaListener` method signature.
+
 **WorkflowId convention:** `"saga-" + subscriptionId.toString()` (e.g. `saga-018f1234-dead-7000-beef-000000000001`)
 
 ## Saga State Machine
@@ -76,8 +78,9 @@ a known sequence with compensation and timeout. They solve different problems.
 
 ```bash
 cd compose
-cp .env.example .env  # set POSTGRES_PASSWORD
-docker compose up -d
-# Wait ~2 minutes for Temporal + Elasticsearch to be ready
-# App available at http://localhost:8080
+cp .env.example .env  # fill in POSTGRES_PASSWORD and CADDY_DEMO_PASSWORD_HASH
+docker compose up -d transflow-core
+# Starts transflow-core + all its dependencies (Postgres, Kafka, Temporal, Elasticsearch)
+# Skips Caddy — not needed locally; access the app directly at http://localhost:8080
+# Wait ~2 minutes for Temporal + Elasticsearch to initialise before the app is fully ready
 ```

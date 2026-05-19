@@ -35,19 +35,26 @@ the tokens already have names.
 ### Kafka Dead Letter Queue (DLQ) for deserialization failures
 
 **What:** Add Kafka DLQ configuration to the `event-driven` module. Events that fail
-deserialization should be routed to a `payments.dlq` topic rather than causing
-indefinite retry loops.
+deserialization should be routed to a `*.dlq` topic rather than causing indefinite
+retry loops.
 
-**Why:** Without a DLQ, a malformed event stops all event processing for the consumer
-group. DLQ is standard Kafka production practice. Its absence is an obvious omission
-for any senior engineer reviewing the module.
+**Why:** Without a DLQ, a single unreadable message at offset 0 blocks all processing
+for the consumer group indefinitely — experienced first-hand during ops: a serializer
+mismatch caused the consumer to loop on the same poisoned offset until topics were
+manually wiped. DLQ is standard Kafka production practice; its absence is an obvious
+omission for any senior engineer reviewing the module.
 
-**Context:** Weekend 2 ships the Kafka consumer without a DLQ. The portfolio demo
-unlikely encounters malformed events, but the pattern's absence signals "never shipped
-a Kafka consumer to production." Implement after the core saga is working.
-
-**Where to start:** `event-driven/src/main/java/.../kafka/` — add `DeadLetterPublisher`
-bean + `errorHandler` in `KafkaListenerContainerFactory` configuration.
+**Where to start:** `application.yml` consumer config — wrap `JsonDeserializer` with
+Spring Kafka's `ErrorHandlingDeserializer` (delegates to `JsonDeserializer`, routes
+failures to DLQ instead of crashing the container):
+```yaml
+spring.kafka.consumer:
+  value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+  properties:
+    spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+```
+Then add a `DeadLetterPublishingRecoverer` bean and wire it into the `DefaultErrorHandler`
+on the `KafkaListenerContainerFactory`.
 
 **Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 2
 
