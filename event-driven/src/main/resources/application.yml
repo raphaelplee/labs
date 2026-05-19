@@ -21,10 +21,8 @@ spring:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       auto-offset-reset: earliest
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       properties:
-        spring.json.trusted.packages: "de.raphaellee.transflow.*"
-        spring.json.use.type.headers: false  # ByteArraySerializer writes no type headers; infer target type from @KafkaListener method signature
         max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
     producer:
       value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer  # Spring Modulith produces byte[] payloads; ByteArraySerializer sends raw JSON bytes that JsonDeserializer can parse
