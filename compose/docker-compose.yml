@@ -113,10 +113,11 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       SERVER_PORT: 8090
+      JAVA_OPTS: "-Xms64m -Xmx320m"
     depends_on:
       kafka:
         condition: service_healthy
-    mem_limit: 256m
+    mem_limit: 400m
 
   temporal:
     image: temporalio/auto-setup:1.29.6.1
