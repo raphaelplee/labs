@@ -1,8 +1,15 @@
 # compose/docker-compose.yml
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     image: caddy:2
     restart: always
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"
@@ -18,6 +25,7 @@ services:
   postgres:
     image: postgres:17.10
     restart: always
+    logging: *default-logging
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
@@ -32,12 +40,14 @@ services:
   adminer:
     image: adminer:4
     restart: always
+    logging: *default-logging
     mem_limit: 64m
     # Not exposed via Caddy — access via: ssh -L 5050:adminer:8080 user@raphaellee.de
 
   elasticsearch:
     image: elasticsearch:8.17.0
     restart: always
+    logging: *default-logging
     environment:
       discovery.type: single-node
       xpack.security.enabled: "false"
@@ -55,6 +65,7 @@ services:
   kafka:
     image: apache/kafka:4.2.0
     restart: always
+    logging: *default-logging
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -79,6 +90,7 @@ services:
 
   kafka-init:
     image: apache/kafka:4.2.0
+    logging: *default-logging
     depends_on:
       kafka:
         condition: service_healthy
@@ -95,6 +107,7 @@ services:
   kafka-ui:
     image: kafbat/kafka-ui:v1.3.0
     restart: always
+    logging: *default-logging
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -107,6 +120,7 @@ services:
   temporal:
     image: temporalio/auto-setup:1.29.6.1
     restart: always
+    logging: *default-logging
     environment:
       - DB=postgres12
       - DB_PORT=5432
@@ -135,6 +149,7 @@ services:
   temporal-ui:
     image: temporalio/ui:2.29.2
     restart: always
+    logging: *default-logging
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_UI_PORT: 8233
@@ -146,6 +161,7 @@ services:
   transflow-core:
     image: ghcr.io/raphaelplee/transflow-core:main
     restart: always
+    logging: *default-logging
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/postgres
       SPRING_DATASOURCE_USERNAME: postgres
