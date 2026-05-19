@@ -37,7 +37,7 @@ class SagaController {
     public ResponseEntity<List<SagaStatus>> listSagas() {
         var request = ListWorkflowExecutionsRequest.newBuilder()
             .setNamespace(namespace)
-            .setQuery("WorkflowType = 'SubscriptionSagaWorkflow' ORDER BY StartTime DESC")
+            .setQuery("WorkflowType = 'SubscriptionSagaWorkflow'")
             .setPageSize(50)
             .build();
 
@@ -45,6 +45,8 @@ class SagaController {
 
         var sagas = response.getExecutionsList().stream()
             .map(mapper::fromExecutionInfo)
+            .sorted(java.util.Comparator.comparing(SagaStatus::startedAt,
+                    java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())))
             .toList();
 
         return ResponseEntity.ok(sagas);
