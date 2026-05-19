@@ -46,6 +46,13 @@ AWAITING_PAYMENT
   └── [paymentFailed signal]  → PAYMENT_FAILED
 ```
 
+The `/api/sagas` endpoint returns these internal state names verbatim in the `status` field.
+`PAYMENT_FAILED`, `TIMED_OUT`, and `COMPLETED` all exit via a normal workflow `return`, so
+Temporal's external execution status is `COMPLETED` for all three — it cannot distinguish
+between them. The API works around this by calling the `getStatus()` `@QueryMethod` on every
+workflow (Temporal supports querying closed workflows by replaying history). The Temporal-level
+status is only a fallback if the query call fails.
+
 ## Module Dependencies
 
 ```
