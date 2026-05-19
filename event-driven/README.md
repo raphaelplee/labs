@@ -32,7 +32,7 @@ These topics are the **public integration surface** of transflow-core. A future 
 
 **Key convention:** none (null key). Messages are not keyed; ordering within a topic is not required.
 
-**Serialization:** Spring Modulith publishes via `ByteArraySerializer` — messages are raw JSON bytes with no type headers. Consumers use `JsonDeserializer` with `spring.json.use.type.headers=false`; the target type is inferred from the `@KafkaListener` method signature.
+**Serialization:** Spring Modulith publishes via `ByteArraySerializer` — messages are raw JSON bytes with no `__TypeId__` headers. Consumers use `ByteArrayDeserializer` (Kafka client layer) + `ByteArrayJacksonJsonMessageConverter` registered as a single `@Bean` (Spring layer). Spring Boot 4 auto-wires a single `RecordMessageConverter` bean to the listener factory via `ObjectProvider.getIfUnique()`; the target type is inferred from the `@KafkaListener` method parameter. Note: `ByteArrayJsonMessageConverter` is deprecated since Spring Kafka 4.0 — use `ByteArrayJacksonJsonMessageConverter`.
 
 **WorkflowId convention:** `"saga-" + subscriptionId.toString()` (e.g. `saga-018f1234-dead-7000-beef-000000000001`)
 
@@ -83,4 +83,43 @@ docker compose up -d transflow-core
 # Starts transflow-core + all its dependencies (Postgres, Kafka, Temporal, Elasticsearch)
 # Skips Caddy — not needed locally; access the app directly at http://localhost:8080
 # Wait ~2 minutes for Temporal + Elasticsearch to initialise before the app is fully ready
+```
+
+## Ops Notes
+
+### GHCR authentication
+
+The server must be authenticated to pull from `ghcr.io/raphaelplee/transflow-core`. Making the
+package public is fragile — GitHub recreates it as private whenever a new image is pushed after
+the package entry is deleted. Use credentials instead:
+
+```bash
+# One-time setup on the server — stored in ~/.docker/config.json and persists across reboots.
+# Generate a classic PAT at github.com/settings/tokens with read:packages scope only.
+echo '<PAT>' | docker login ghcr.io -u raphaelplee --password-stdin
+```
+
+### JVM memory in containers
+
+Docker's `mem_limit` is a cgroup hard limit, but JVM ergonomics size the heap from host RAM
+by default — not the container limit. Always pair `mem_limit` with an explicit `-Xmx` in
+`JAVA_OPTS`. Rule of thumb: `-Xmx` at ~80% of `mem_limit`, leaving headroom for metaspace,
+threads, and NIO buffers.
+
+| Service | mem_limit | JAVA_OPTS |
+|---------|-----------|-----------|
+| transflow-core | 512m | via `JAVA_OPTS` env var |
+| elasticsearch | 1g | `-Xms256m -Xmx768m` |
+| kafka-ui | 400m | `-Xms64m -Xmx320m` |
+
+### Kafka topic poison messages
+
+If a consumer loops on the same offset with deserialization errors, the topic has a poisoned
+message at that offset. The entire consumer group is blocked until it is cleared.
+Fix: delete and recreate the topic (acceptable in dev; use a DLQ in production — see TODOS.md).
+
+```bash
+docker exec compose-kafka-1 /opt/kafka/bin/kafka-topics.sh \
+  --bootstrap-server localhost:9092 --delete --topic <topic-name>
+docker compose restart kafka-init  # recreates the topic
 ```
