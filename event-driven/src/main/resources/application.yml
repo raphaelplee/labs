@@ -1,3 +1,6 @@
+server:
+  forward-headers-strategy: native  # trust X-Forwarded-Proto from Caddy reverse proxy
+
 spring:
   application:
     name: transflow-core
