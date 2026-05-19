@@ -1,38 +1,27 @@
 package de.raphaellee.transflow;
 
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.support.converter.ByteArrayJsonMessageConverter;
+import org.springframework.kafka.support.converter.ByteArrayJacksonJsonMessageConverter;
 
 /**
- * Explicit Kafka listener container factory.
+ * Kafka message converter for @KafkaListener methods.
  *
  * Spring Modulith publishes domain events as raw JSON bytes via ByteArraySerializer
- * (no __TypeId__ header). ByteArrayDeserializer passes the bytes through untouched;
- * ByteArrayJsonMessageConverter then deserializes JSON → the target type based on
- * the @KafkaListener method parameter, avoiding the need for type headers entirely.
+ * (no __TypeId__ header). ByteArrayDeserializer (set in application.yml) passes the
+ * bytes through untouched; ByteArrayJacksonJsonMessageConverter then deserializes
+ * JSON → the target type based on the @KafkaListener method parameter, avoiding
+ * the need for __TypeId__ headers entirely.
  *
- * We configure the factory explicitly rather than registering ByteArrayJsonMessageConverter
- * as a bare @Bean. Spring Boot 4 auto-configuration detects any AbstractJsonMessageConverter
- * bean and overrides the consumer factory deserializer with JsonDeserializer — which then
- * fails because Spring Modulith produces byte[] payloads with no __TypeId__ headers.
- * Naming this bean "kafkaListenerContainerFactory" satisfies @ConditionalOnMissingBean
- * and prevents the auto-configured factory from running.
+ * Spring Boot 4 picks up a single RecordMessageConverter bean via
+ * ObjectProvider.getIfUnique() and wires it to the auto-configured
+ * KafkaListenerContainerFactory — no explicit factory configuration needed.
  */
 @Configuration
 class KafkaConfig {
 
     @Bean
-    ConcurrentKafkaListenerContainerFactory<String, byte[]> kafkaListenerContainerFactory(
-            KafkaProperties kafkaProperties) {
-        var consumerProps = kafkaProperties.buildConsumerProperties(null);
-        var consumerFactory = new DefaultKafkaConsumerFactory<String, byte[]>(consumerProps);
-        var factory = new ConcurrentKafkaListenerContainerFactory<String, byte[]>();
-        factory.setConsumerFactory(consumerFactory);
-        factory.setMessageConverter(new ByteArrayJsonMessageConverter());
-        return factory;
+    ByteArrayJacksonJsonMessageConverter kafkaMessageConverter() {
+        return new ByteArrayJacksonJsonMessageConverter();
     }
 }
