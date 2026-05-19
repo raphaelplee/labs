@@ -80,4 +80,4 @@ jobs:
             cd /opt/labs && git pull
             cd compose
             docker compose pull transflow-core
-            docker compose up -d --no-deps transflow-core
+            docker compose up -d
