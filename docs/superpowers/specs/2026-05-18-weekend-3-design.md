@@ -274,12 +274,14 @@ Right side of existing nav bar extended:
 Shown when any API call returns 401 (session expired mid-session — distinct from first visit which redirects via oauth2Login):
 
 ```
-Session expired — Sign in again   ✕
+Session expired — Sign in again (progress will reset)   ✕
 ```
 
+- **Position:** Fixed full-width bar between nav and the two-panel layout (not an overlay on either panel). Shifts panel layout down by ~36px when visible.
 - `var(--accent-red)` border
 - `role="alert" aria-live="assertive"` — screen readers announce immediately
 - Dismissible (✕ button)
+- Text: "Session expired — Sign in again (progress will reset)" — the parenthetical sets expectation that step-by-step flow state (activeOrder context) resets on re-login
 - Replaces any existing `alert()` error handling for 401 responses
 
 ### 403 Handling
@@ -302,16 +304,17 @@ All existing `POST fetch()` calls extended with `'X-XSRF-TOKEN': getCsrfToken()`
 
 ### Toasts
 
-Position: bottom-right, stacked, max 3 visible, auto-dismiss after 4 seconds.
+Position: bottom-right viewport corner (fixed), stacked, max 3 visible, auto-dismiss after 4 seconds. On viewports narrower than ~1100px, the toast may briefly overlap the rightmost saga card — acceptable tradeoff for the standard position convention.
 
-| Event | Message | Color |
-|---|---|---|
-| Saga trigger success | "Saga started" | `var(--accent-green)` |
-| Payment confirmed | "Payment confirmed" | `var(--accent-green)` |
-| Payment failed (intentional) | "Payment failed — compensation triggered" | `var(--accent-orange)` |
-| API error (non-401, non-403) | "Request failed — try again" | `var(--accent-red)` |
+| Event | Trigger | Message | Color |
+|---|---|---|---|
+| Step 1: Order created | `POST /api/orders` → 201 | "Order created" | `var(--accent-green)` |
+| Step 2: Payment confirmed (happy path) | `POST /api/payments/:id/confirm?scenario=HAPPY_PATH` → 200 | "Payment confirmed" | `var(--accent-green)` |
+| Step 2: Payment confirmed (timeout path) | `POST /api/payments/:id/confirm?scenario=FULFILLMENT_TIMEOUT` → 200 | "Payment confirmed — watch for fulfillment timeout" | `var(--accent-orange)` |
+| Step 2: Payment failed (intentional) | `POST /api/payments/:id/fail` → 200 | "Payment failed — compensation triggered" | `var(--accent-orange)` |
+| API error (non-401, non-403) | Any request → 4xx/5xx | "Request failed — try again" | `var(--accent-red)` |
 
-Toast component: vanilla JS, no framework. New `#toast-container` div appended to `<body>`. Each toast is a `<div>` with `role="status"` for screen reader compatibility. Auto-dismissed via `setTimeout`. Stacking: newest toast appends below existing ones.
+Toast component: vanilla JS, no framework. New `#toast-container` div appended to `<body>`. Each toast is a `<div>` with `role="status"` for screen reader compatibility. Dismiss button: `aria-label="Dismiss notification"`, minimum 44×44px touch target. Auto-dismissed via `setTimeout`. Stacking: newest toast appends below existing ones.
 
 ### Blurb Update
 
