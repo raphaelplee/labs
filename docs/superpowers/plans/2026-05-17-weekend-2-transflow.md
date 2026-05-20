@@ -1,8 +1,26 @@
-# Weekend 2 — Subscription Lifecycle Saga Implementation Plan
+﻿# Weekend 2 â€” Subscription Lifecycle Saga Implementation Plan
+
+> **Status: COMPLETE** — All 84 steps shipped. Deployed to transflow.raphaellee.de.
+
+## Execution Notes (2026-05-20)
+
+What diverged from the plan, and bugs found post-implementation:
+
+**KafkaConfig simplified** — Plan specified an explicit `ConcurrentKafkaListenerContainerFactory` bean. Actual implementation uses a single `@Bean ByteArrayJacksonJsonMessageConverter` bean; Spring Boot 4 auto-wires it via `ObjectProvider.getIfUnique()`. Note: `ByteArrayJsonMessageConverter` is **deprecated since Spring Kafka 4.0** — use `ByteArrayJacksonJsonMessageConverter` (Jackson 3).
+
+**kafka-ui OOM** — `mem_limit: 256m` with no `-Xmx` set caused OOM restarts. Fixed: `mem_limit: 400m` + `JAVA_OPTS: "-Xms64m -Xmx320m"`. Rule: always pair `mem_limit` with an explicit `-Xmx` — JVM ergonomics sizes the heap from host RAM by default, not the cgroup limit.
+
+**GHCR package visibility** — GitHub recreates the package as private when a new image is pushed after the package entry is deleted. Reliable fix: `docker login ghcr.io` with a PAT on the server. Credentials persist in `~/.docker/config.json`.
+
+**Saga terminal state ambiguity (bug found post-deploy)** — `PAYMENT_FAILED`, `TIMED_OUT`, and `COMPLETED` all exit via a normal `return` in the workflow function, so Temporal marks all three as `WORKFLOW_EXECUTION_STATUS_COMPLETED`. `SagaStatusMapper` had no way to distinguish them and always returned `status: "COMPLETED"` with happy-path steps. Fixed by calling the `getStatus()` `@QueryMethod` on every workflow in `SagaController` — Temporal supports querying closed workflows by replaying history. `SagaStatusMapper.deriveSteps()` updated to handle all precise internal state names (`AWAITING_PAYMENT`, `FULFILLMENT_PROCESSING`, `PAYMENT_FAILED`, `TIMED_OUT`, `COMPLETED`).
+
+**Code noise removed post-implementation** — `SagaStatus`/`SagaStep` dead fields (`scenario`, `error`, `completedAt`) removed; `updatedAt` renamed `closedAt` (null for running workflows instead of `Instant.now()` which changed on every call); `GlobalExceptionHandler` `@ResponseStatus` annotations removed (Spring Boot 4 reads status from `ProblemDetail.getStatus()`); `PaymentService` dead null guard on `scenario` removed.
+
+---
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a subscription lifecycle saga (order → payment → fulfillment) using Temporal, Kafka, and Spring Modulith — publicly accessible at transflow.raphaellee.de with a live HTML status page showing real-time saga progress.
+**Goal:** Build a subscription lifecycle saga (order â†’ payment â†’ fulfillment) using Temporal, Kafka, and Spring Modulith â€” publicly accessible at transflow.raphaellee.de with a live HTML status page showing real-time saga progress.
 
 **Architecture:** Single Spring Boot 4 JVM with four Spring Modulith modules (orchestration, order, payment, fulfillment) enforced by ArchUnit. Kafka carries domain events across module boundaries. Temporal orchestrates the saga state machine. The HTML page polls the saga REST API every 2 seconds.
 
@@ -16,91 +34,91 @@ Files created or modified by this plan:
 
 ```
 compose/
-  docker-compose.yml              MODIFY — add 9 new services, mem_limits, healthcheck chain
-  Caddyfile                       MODIFY — add transflow, temporal, kafka routes
-  .env.example                    MODIFY — add POSTGRES_PASSWORD placeholder
+  docker-compose.yml              MODIFY â€” add 9 new services, mem_limits, healthcheck chain
+  Caddyfile                       MODIFY â€” add transflow, temporal, kafka routes
+  .env.example                    MODIFY â€” add POSTGRES_PASSWORD placeholder
 
 event-driven/
-  Dockerfile                      CREATE — eclipse-temurin:25-jre build image
-  pom.xml                         MODIFY — add all dependencies + plugin config
+  Dockerfile                      CREATE â€” eclipse-temurin:25-jre build image
+  pom.xml                         MODIFY â€” add all dependencies + plugin config
 
   src/main/java/de/raphaellee/transflow/
     TransflowApplication.java                         CREATE
     orchestration/
-      SubscriptionSagaWorkflow.java                   CREATE — @WorkflowInterface
-      SubscriptionSagaWorkflowImpl.java               CREATE — state machine
-      SagaController.java                             CREATE — GET /api/sagas, /api/sagas/{id}
-      SagaStatusMapper.java                           CREATE — Temporal execution → DTO
-      SagaStatus.java                                 CREATE — response DTO
-      SagaStep.java                                   CREATE — step DTO
-      OrderCreatedConsumer.java                       CREATE — starts workflow
-      PaymentProcessedConsumer.java                   CREATE — PAYMENT_OK signal
-      PaymentFailedConsumer.java                      CREATE — PAYMENT_FAILED signal
-      TemporalConfig.java                             CREATE — worker + client beans
-      package-info.java                               CREATE — module API surface
+      SubscriptionSagaWorkflow.java                   CREATE â€” @WorkflowInterface
+      SubscriptionSagaWorkflowImpl.java               CREATE â€” state machine
+      SagaController.java                             CREATE â€” GET /api/sagas, /api/sagas/{id}
+      SagaStatusMapper.java                           CREATE â€” Temporal execution â†’ DTO
+      SagaStatus.java                                 CREATE â€” response DTO
+      SagaStep.java                                   CREATE â€” step DTO
+      OrderCreatedConsumer.java                       CREATE â€” starts workflow
+      PaymentProcessedConsumer.java                   CREATE â€” PAYMENT_OK signal
+      PaymentFailedConsumer.java                      CREATE â€” PAYMENT_FAILED signal
+      TemporalConfig.java                             CREATE â€” worker + client beans
+      package-info.java                               CREATE â€” module API surface
     order/
-      Order.java                                      CREATE — JPA entity
-      OrderRepository.java                            CREATE — JpaRepository
-      OrderCreatedEvent.java                          CREATE — @Externalized("order.created")
-      OrderService.java                               CREATE — createOrder()
-      OrderController.java                            CREATE — POST /api/orders, GET /api/orders/{id}
-      OrderRequest.java                               CREATE — request DTO
-      OrderResponse.java                              CREATE — response DTO
+      Order.java                                      CREATE â€” JPA entity
+      OrderRepository.java                            CREATE â€” JpaRepository
+      OrderCreatedEvent.java                          CREATE â€” @Externalized("order.created")
+      OrderService.java                               CREATE â€” createOrder()
+      OrderController.java                            CREATE â€” POST /api/orders, GET /api/orders/{id}
+      OrderRequest.java                               CREATE â€” request DTO
+      OrderResponse.java                              CREATE â€” response DTO
       package-info.java                               CREATE
     payment/
-      Payment.java                                    CREATE — JPA entity
+      Payment.java                                    CREATE â€” JPA entity
       PaymentRepository.java                          CREATE
-      PaymentProcessedEvent.java                      CREATE — @Externalized("payment.processed")
-      PaymentFailedEvent.java                         CREATE — @Externalized("payment.failed")
-      PaymentService.java                             CREATE — confirmPayment(), failPayment()
-      PaymentController.java                          CREATE — POST /api/payments/{id}/confirm|fail
+      PaymentProcessedEvent.java                      CREATE â€” @Externalized("payment.processed")
+      PaymentFailedEvent.java                         CREATE â€” @Externalized("payment.failed")
+      PaymentService.java                             CREATE â€” confirmPayment(), failPayment()
+      PaymentController.java                          CREATE â€” POST /api/payments/{id}/confirm|fail
       PaymentResponse.java                            CREATE
       package-info.java                               CREATE
     fulfillment/
-      FulfillmentRecord.java                          CREATE — JPA entity
+      FulfillmentRecord.java                          CREATE â€” JPA entity
       FulfillmentRecordRepository.java                CREATE
-      FulfillmentCompletedEvent.java                  CREATE — @Externalized("fulfillment.completed")
-      FulfillmentService.java                         CREATE — complete()
-      FulfillmentConsumer.java                        CREATE — FULFILLMENT_DONE signal
-      FulfillmentController.java                      CREATE — GET /api/fulfillments, /{orderId}
+      FulfillmentCompletedEvent.java                  CREATE â€” @Externalized("fulfillment.completed")
+      FulfillmentService.java                         CREATE â€” complete()
+      FulfillmentConsumer.java                        CREATE â€” FULFILLMENT_DONE signal
+      FulfillmentController.java                      CREATE â€” GET /api/fulfillments, /{orderId}
       FulfillmentResponse.java                        CREATE
       package-info.java                               CREATE
 
   src/main/resources/
     application.yml                                   CREATE
     db/migration/
-      V1__init_transflow_schema.sql                   CREATE — schema + tables
+      V1__init_transflow_schema.sql                   CREATE â€” schema + tables
 
   src/main/resources/static/
-    index.html                                        CREATE — live demo page
+    index.html                                        CREATE â€” live demo page
 
   src/test/java/de/raphaellee/transflow/
     orchestration/
-      SubscriptionSagaWorkflowTest.java               CREATE — 4 TestWorkflowEnvironment tests
+      SubscriptionSagaWorkflowTest.java               CREATE â€” 4 TestWorkflowEnvironment tests
     order/
-      OrderModuleTest.java                            CREATE — @ApplicationModuleTest
+      OrderModuleTest.java                            CREATE â€” @ApplicationModuleTest
     payment/
-      PaymentModuleTest.java                          CREATE — @ApplicationModuleTest
+      PaymentModuleTest.java                          CREATE â€” @ApplicationModuleTest
     fulfillment/
-      FulfillmentModuleTest.java                      CREATE — @ApplicationModuleTest
-    ArchUnitTest.java                                 CREATE — cross-module boundary rules
+      FulfillmentModuleTest.java                      CREATE â€” @ApplicationModuleTest
+    ArchUnitTest.java                                 CREATE â€” cross-module boundary rules
     integration/
-      SagaIntegrationTest.java                        CREATE — Testcontainers Kafka + Postgres + Temporal
+      SagaIntegrationTest.java                        CREATE â€” Testcontainers Kafka + Postgres + Temporal
 
 .github/workflows/
-  integration-tests.yml                              CREATE — separate CI job
+  integration-tests.yml                              CREATE â€” separate CI job
 ```
 
 ---
 
-## Task 1: Docker Compose — Full Stack
+## Task 1: Docker Compose â€” Full Stack
 
 **Files:**
 - Modify: `compose/docker-compose.yml`
 - Modify: `compose/Caddyfile`
 - Modify: `compose/.env.example`
 
-- [ ] **Step 1: Replace docker-compose.yml**
+- [x] **Step 1: Replace docker-compose.yml**
 
 ```yaml
 # compose/docker-compose.yml
@@ -136,7 +154,7 @@ services:
     image: adminer:4
     restart: always
     mem_limit: 64m
-    # Not exposed via Caddy — access via: ssh -L 5050:adminer:8080 user@raphaellee.de
+    # Not exposed via Caddy â€” access via: ssh -L 5050:adminer:8080 user@raphaellee.de
 
   elasticsearch:
     image: elasticsearch:8.17.0
@@ -272,14 +290,14 @@ volumes:
   kafka_data:
 ```
 
-- [ ] **Step 2: Update Caddyfile**
+- [x] **Step 2: Update Caddyfile**
 
 > **Security (CSO audit 2026-05-17):** Temporal UI and Kafka UI MUST be protected with
-> `basic_auth` — both surfaces allow arbitrary signal injection and event publishing.
+> `basic_auth` â€” both surfaces allow arbitrary signal injection and event publishing.
 > Generate the bcrypt hash first:
 > ```bash
 > docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
-> # → paste the $2y$14$... output as CADDY_DEMO_PASSWORD_HASH in compose/.env
+> # â†’ paste the $2y$14$... output as CADDY_DEMO_PASSWORD_HASH in compose/.env
 > ```
 
 Replace `compose/Caddyfile`:
@@ -324,7 +342,7 @@ dashboard.raphaellee.eu {
 }
 ```
 
-- [ ] **Step 3: Update .env.example**
+- [x] **Step 3: Update .env.example**
 
 ```
 POSTGRES_PASSWORD=changeme
@@ -332,7 +350,7 @@ POSTGRES_PASSWORD=changeme
 CADDY_DEMO_PASSWORD_HASH=$2y$14$changeme
 ```
 
-- [ ] **Step 4: Validate compose file parses**
+- [x] **Step 4: Validate compose file parses**
 
 ```bash
 cd compose
@@ -341,16 +359,16 @@ docker compose config --quiet
 
 Expected: no output (valid), exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add compose/docker-compose.yml compose/Caddyfile compose/.env.example
-git commit -m "infra: extend Docker Compose stack — ES, Kafka, Temporal, transflow-core"
+git commit -m "infra: extend Docker Compose stack â€” ES, Kafka, Temporal, transflow-core"
 ```
 
 ---
 
-## Task 2: Maven Module — pom.xml + App Bootstrap
+## Task 2: Maven Module â€” pom.xml + App Bootstrap
 
 **Files:**
 - Modify: `event-driven/pom.xml`
@@ -358,7 +376,7 @@ git commit -m "infra: extend Docker Compose stack — ES, Kafka, Temporal, trans
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/TransflowApplication.java`
 - Create: `event-driven/src/main/resources/application.yml`
 
-- [ ] **Step 1: Replace event-driven/pom.xml**
+- [x] **Step 1: Replace event-driven/pom.xml**
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -532,7 +550,7 @@ git commit -m "infra: extend Docker Compose stack — ES, Kafka, Temporal, trans
 </project>
 ```
 
-- [ ] **Step 2: Create Dockerfile**
+- [x] **Step 2: Create Dockerfile**
 
 ```dockerfile
 # event-driven/Dockerfile
@@ -542,7 +560,7 @@ COPY event-driven/target/transflow-core-*.jar app.jar
 ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]
 ```
 
-- [ ] **Step 3: Create TransflowApplication.java**
+- [x] **Step 3: Create TransflowApplication.java**
 
 Create directory structure first:
 ```bash
@@ -568,7 +586,7 @@ public class TransflowApplication {
 }
 ```
 
-- [ ] **Step 4: Create application.yml**
+- [x] **Step 4: Create application.yml**
 
 ```yaml
 # event-driven/src/main/resources/application.yml
@@ -615,16 +633,16 @@ springdoc:
     path: /swagger-ui/index.html
 ```
 
-- [ ] **Step 5: Verify the module compiles**
+- [x] **Step 5: Verify the module compiles**
 
 ```bash
 cd event-driven
 mvn compile -q
 ```
 
-Expected: BUILD SUCCESS (no source files yet — that's fine, empty compile passes).
+Expected: BUILD SUCCESS (no source files yet â€” that's fine, empty compile passes).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add event-driven/pom.xml event-driven/Dockerfile \
@@ -635,12 +653,12 @@ git commit -m "build: add transflow-core Maven module with all dependencies"
 
 ---
 
-## Task 3: Flyway Migration — Transflow Schema
+## Task 3: Flyway Migration â€” Transflow Schema
 
 **Files:**
 - Create: `event-driven/src/main/resources/db/migration/V1__init_transflow_schema.sql`
 
-- [ ] **Step 1: Create V1__init_transflow_schema.sql**
+- [x] **Step 1: Create V1__init_transflow_schema.sql**
 
 ```sql
 -- event-driven/src/main/resources/db/migration/V1__init_transflow_schema.sql
@@ -679,10 +697,10 @@ CREATE INDEX idx_payments_order_id ON transflow.payments(order_id);
 CREATE INDEX idx_fulfillment_order_id ON transflow.fulfillment_records(order_id);
 ```
 
-- [ ] **Step 2: Start Postgres locally and verify migration runs**
+- [x] **Step 2: Start Postgres locally and verify migration runs**
 
 ```bash
-# From compose/ directory — start just postgres
+# From compose/ directory â€” start just postgres
 docker compose up -d postgres
 sleep 5
 
@@ -698,11 +716,11 @@ mvn flyway:migrate -Dflyway.url=jdbc:postgresql://localhost:5432/postgres \
 
 Expected: `Successfully applied 1 migration to schema "transflow"`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add event-driven/src/main/resources/db/migration/V1__init_transflow_schema.sql
-git commit -m "db: add Flyway migration V1 — transflow schema + orders/payments/fulfillment tables"
+git commit -m "db: add Flyway migration V1 â€” transflow schema + orders/payments/fulfillment tables"
 ```
 
 ---
@@ -713,7 +731,7 @@ git commit -m "db: add Flyway migration V1 — transflow schema + orders/payment
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/order/*.java`
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/order/OrderModuleTest.java`
 
-- [ ] **Step 1: Write the failing @ApplicationModuleTest**
+- [x] **Step 1: Write the failing @ApplicationModuleTest**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/order/OrderModuleTest.java
@@ -760,16 +778,16 @@ class OrderModuleTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 ```bash
 cd event-driven
 mvn test -pl . -Dtest=OrderModuleTest -q 2>&1 | tail -5
 ```
 
-Expected: FAILURE — `OrderService` does not exist.
+Expected: FAILURE â€” `OrderService` does not exist.
 
-- [ ] **Step 3: Create Order.java**
+- [x] **Step 3: Create Order.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/Order.java
@@ -799,7 +817,7 @@ class Order {
 }
 ```
 
-- [ ] **Step 4: Create OrderRepository.java**
+- [x] **Step 4: Create OrderRepository.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderRepository.java
@@ -814,7 +832,7 @@ interface OrderRepository extends JpaRepository<Order, UUID> {
 }
 ```
 
-- [ ] **Step 5: Create OrderCreatedEvent.java**
+- [x] **Step 5: Create OrderCreatedEvent.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderCreatedEvent.java
@@ -826,7 +844,7 @@ import org.springframework.modulith.events.Externalized;
 public record OrderCreatedEvent(String orderId, String subscriptionId) {}
 ```
 
-- [ ] **Step 6: Create OrderService.java**
+- [x] **Step 6: Create OrderService.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderService.java
@@ -872,7 +890,7 @@ public class OrderService {
 }
 ```
 
-- [ ] **Step 7: Create OrderResponse.java**
+- [x] **Step 7: Create OrderResponse.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderResponse.java
@@ -884,7 +902,7 @@ import java.util.UUID;
 public record OrderResponse(UUID orderId, String subscriptionId, String status, Instant createdAt) {}
 ```
 
-- [ ] **Step 8: Create OrderRequest.java**
+- [x] **Step 8: Create OrderRequest.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderRequest.java
@@ -893,7 +911,7 @@ package de.raphaellee.transflow.order;
 public record OrderRequest(String subscriptionId) {}
 ```
 
-- [ ] **Step 9: Create OrderController.java**
+- [x] **Step 9: Create OrderController.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/OrderController.java
@@ -932,7 +950,7 @@ public class OrderController {
 }
 ```
 
-- [ ] **Step 10: Create package-info.java for order module**
+- [x] **Step 10: Create package-info.java for order module**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/order/package-info.java
@@ -943,7 +961,7 @@ public class OrderController {
 package de.raphaellee.transflow.order;
 ```
 
-- [ ] **Step 11: Add exception handler to TransflowApplication (global)**
+- [x] **Step 11: Add exception handler to TransflowApplication (global)**
 
 Create `event-driven/src/main/java/de/raphaellee/transflow/GlobalExceptionHandler.java`:
 
@@ -975,7 +993,7 @@ public class GlobalExceptionHandler {
 }
 ```
 
-- [ ] **Step 12: Run the test to verify it passes**
+- [x] **Step 12: Run the test to verify it passes**
 
 ```bash
 cd event-driven
@@ -984,13 +1002,13 @@ mvn test -Dtest=OrderModuleTest -q
 
 Expected: `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/order/ \
   event-driven/src/main/java/de/raphaellee/transflow/GlobalExceptionHandler.java \
   event-driven/src/test/java/de/raphaellee/transflow/order/
-git commit -m "feat(order): order module — entity, service, REST API, @ApplicationModuleTest"
+git commit -m "feat(order): order module â€” entity, service, REST API, @ApplicationModuleTest"
 ```
 
 ---
@@ -1001,7 +1019,7 @@ git commit -m "feat(order): order module — entity, service, REST API, @Applica
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/payment/*.java`
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/payment/PaymentModuleTest.java`
 
-- [ ] **Step 1: Write the failing @ApplicationModuleTest**
+- [x] **Step 1: Write the failing @ApplicationModuleTest**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/payment/PaymentModuleTest.java
@@ -1053,15 +1071,15 @@ class PaymentModuleTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 ```bash
 mvn test -Dtest=PaymentModuleTest -q 2>&1 | tail -5
 ```
 
-Expected: FAILURE — `PaymentService` does not exist.
+Expected: FAILURE â€” `PaymentService` does not exist.
 
-- [ ] **Step 3: Create Payment.java**
+- [x] **Step 3: Create Payment.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/Payment.java
@@ -1093,7 +1111,7 @@ class Payment {
 }
 ```
 
-- [ ] **Step 4: Create PaymentRepository.java**
+- [x] **Step 4: Create PaymentRepository.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/PaymentRepository.java
@@ -1105,7 +1123,7 @@ import java.util.UUID;
 interface PaymentRepository extends JpaRepository<Payment, UUID> {}
 ```
 
-- [ ] **Step 5: Create PaymentProcessedEvent.java**
+- [x] **Step 5: Create PaymentProcessedEvent.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/PaymentProcessedEvent.java
@@ -1117,7 +1135,7 @@ import org.springframework.modulith.events.Externalized;
 public record PaymentProcessedEvent(String orderId, String subscriptionId, String scenario) {}
 ```
 
-- [ ] **Step 6: Create PaymentFailedEvent.java**
+- [x] **Step 6: Create PaymentFailedEvent.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/PaymentFailedEvent.java
@@ -1129,7 +1147,7 @@ import org.springframework.modulith.events.Externalized;
 public record PaymentFailedEvent(String orderId, String subscriptionId) {}
 ```
 
-- [ ] **Step 7: Create PaymentResponse.java**
+- [x] **Step 7: Create PaymentResponse.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/PaymentResponse.java
@@ -1140,7 +1158,7 @@ import java.util.UUID;
 public record PaymentResponse(UUID paymentId, UUID orderId, String status) {}
 ```
 
-- [ ] **Step 8: Create PaymentService.java**
+- [x] **Step 8: Create PaymentService.java**
 
 For this service to publish `PaymentProcessedEvent` with `subscriptionId`, it needs to look up the order's subscriptionId. Since payment cannot import order's internals, it gets subscriptionId passed in from the controller (which gets it from the order API).
 
@@ -1176,7 +1194,7 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse confirmPayment(UUID orderId, String subscriptionId, String scenario) {
-        // orderId existence check deferred to constraint — throw 404 if order not in DB
+        // orderId existence check deferred to constraint â€” throw 404 if order not in DB
         // subscriptionId is passed from controller which looked it up
         var payment = new Payment(orderId, "PROCESSED", scenario);
         repository.save(payment);
@@ -1208,11 +1226,11 @@ public class PaymentService {
 }
 ```
 
-- [ ] **Step 9: Create PaymentController.java**
+- [x] **Step 9: Create PaymentController.java**
 
 The controller fetches subscriptionId from the order module via REST (same JVM, but via the public API surface to respect module boundaries). Since both run in the same JVM, this is a local REST call using `RestTemplate` or `WebClient`. Alternatively, expose a package-accessible API from order module.
 
-Use the simpler approach: OrderService exposes a public `getOrder()` method (already implemented), and PaymentController can call it since it's the public API, not internals. This is allowed by Spring Modulith — accessing a module's public service class is permitted.
+Use the simpler approach: OrderService exposes a public `getOrder()` method (already implemented), and PaymentController can call it since it's the public API, not internals. This is allowed by Spring Modulith â€” accessing a module's public service class is permitted.
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/PaymentController.java
@@ -1239,7 +1257,7 @@ public class PaymentController {
     }
 
     @PostMapping("/{orderId}/confirm")
-    @Operation(summary = "Confirm payment — triggers PAYMENT_OK saga signal")
+    @Operation(summary = "Confirm payment â€” triggers PAYMENT_OK saga signal")
     ResponseEntity<PaymentResponse> confirm(
             @PathVariable UUID orderId,
             @RequestParam(defaultValue = "happy-path") String scenario) {
@@ -1249,7 +1267,7 @@ public class PaymentController {
     }
 
     @PostMapping("/{orderId}/fail")
-    @Operation(summary = "Fail payment — triggers PAYMENT_FAILED saga signal")
+    @Operation(summary = "Fail payment â€” triggers PAYMENT_FAILED saga signal")
     ResponseEntity<PaymentResponse> fail(@PathVariable UUID orderId) {
         var order = orderService.getOrder(orderId);
         var response = paymentService.failPayment(orderId, order.subscriptionId());
@@ -1258,7 +1276,7 @@ public class PaymentController {
 }
 ```
 
-- [ ] **Step 10: Create package-info.java**
+- [x] **Step 10: Create package-info.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/payment/package-info.java
@@ -1269,7 +1287,7 @@ public class PaymentController {
 package de.raphaellee.transflow.payment;
 ```
 
-- [ ] **Step 11: Run tests**
+- [x] **Step 11: Run tests**
 
 ```bash
 mvn test -Dtest=PaymentModuleTest -q
@@ -1277,24 +1295,24 @@ mvn test -Dtest=PaymentModuleTest -q
 
 Expected: `Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/payment/ \
   event-driven/src/test/java/de/raphaellee/transflow/payment/
-git commit -m "feat(payment): payment module — entity, events, service, REST API"
+git commit -m "feat(payment): payment module â€” entity, events, service, REST API"
 ```
 
 ---
 
-## Task 6: Temporal Workflow — Unit Tests + Implementation
+## Task 6: Temporal Workflow â€” Unit Tests + Implementation
 
 **Files:**
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflow.java`
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowImpl.java`
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowTest.java`
 
-- [ ] **Step 1: Write all four TestWorkflowEnvironment tests (write first, then implement)**
+- [x] **Step 1: Write all four TestWorkflowEnvironment tests (write first, then implement)**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowTest.java
@@ -1336,7 +1354,7 @@ class SubscriptionSagaWorkflowTest {
         // Signal PAYMENT_OK
         stub.paymentOk();
 
-        // Query status — should be FULFILLMENT_PROCESSING
+        // Query status â€” should be FULFILLMENT_PROCESSING
         assertThat(stub.getStatus()).isEqualTo("FULFILLMENT_PROCESSING");
     }
 
@@ -1404,15 +1422,15 @@ class SubscriptionSagaWorkflowTest {
 }
 ```
 
-- [ ] **Step 2: Run to verify they fail**
+- [x] **Step 2: Run to verify they fail**
 
 ```bash
 mvn test -Dtest=SubscriptionSagaWorkflowTest -q 2>&1 | tail -5
 ```
 
-Expected: FAILURE — `SubscriptionSagaWorkflow` does not exist.
+Expected: FAILURE â€” `SubscriptionSagaWorkflow` does not exist.
 
-- [ ] **Step 3: Create SubscriptionSagaWorkflow.java (interface)**
+- [x] **Step 3: Create SubscriptionSagaWorkflow.java (interface)**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflow.java
@@ -1443,7 +1461,7 @@ public interface SubscriptionSagaWorkflow {
 }
 ```
 
-- [ ] **Step 4: Create SubscriptionSagaWorkflowImpl.java**
+- [x] **Step 4: Create SubscriptionSagaWorkflowImpl.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowImpl.java
@@ -1465,21 +1483,21 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 
     @Override
     public void run(String orderId, String subscriptionId) {
-        log.info("Saga started — orderId={} subscriptionId={}", orderId, subscriptionId);
+        log.info("Saga started â€” orderId={} subscriptionId={}", orderId, subscriptionId);
 
         // Wait for payment signal
         Workflow.await(() -> paymentOk || paymentFailed);
 
         if (paymentFailed) {
             status = "PAYMENT_FAILED";
-            log.info("Saga ended with PAYMENT_FAILED — orderId={}", orderId);
+            log.info("Saga ended with PAYMENT_FAILED â€” orderId={}", orderId);
             return;
         }
 
         status = "FULFILLMENT_PROCESSING";
-        log.info("Payment confirmed — awaiting fulfillment for orderId={}", orderId);
+        log.info("Payment confirmed â€” awaiting fulfillment for orderId={}", orderId);
 
-        // Read timeout from env (default 30s) — use Workflow.getInfo or config
+        // Read timeout from env (default 30s) â€” use Workflow.getInfo or config
         long timeoutSeconds = Long.parseLong(
             System.getenv().getOrDefault("SAGA_FULFILLMENT_TIMEOUT_SECONDS", "30"));
 
@@ -1488,12 +1506,12 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 
         if (!completed) {
             status = "TIMED_OUT";
-            log.warn("Fulfillment timed out after {}s — orderId={}", timeoutSeconds, orderId);
+            log.warn("Fulfillment timed out after {}s â€” orderId={}", timeoutSeconds, orderId);
             return;
         }
 
         status = "COMPLETED";
-        log.info("Saga COMPLETED — orderId={}", orderId);
+        log.info("Saga COMPLETED â€” orderId={}", orderId);
     }
 
     @Override
@@ -1518,7 +1536,7 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 }
 ```
 
-- [ ] **Step 5: Run the four tests**
+- [x] **Step 5: Run the four tests**
 
 ```bash
 mvn test -Dtest=SubscriptionSagaWorkflowTest -q
@@ -1526,13 +1544,13 @@ mvn test -Dtest=SubscriptionSagaWorkflowTest -q
 
 Expected: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflow.java \
   event-driven/src/main/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowImpl.java \
   event-driven/src/test/java/de/raphaellee/transflow/orchestration/SubscriptionSagaWorkflowTest.java
-git commit -m "feat(orchestration): Temporal workflow — 4 TestWorkflowEnvironment tests green"
+git commit -m "feat(orchestration): Temporal workflow â€” 4 TestWorkflowEnvironment tests green"
 ```
 
 ---
@@ -1546,7 +1564,7 @@ git commit -m "feat(orchestration): Temporal workflow — 4 TestWorkflowEnvironm
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/PaymentFailedConsumer.java`
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/package-info.java`
 
-- [ ] **Step 1: Create TemporalConfig.java**
+- [x] **Step 1: Create TemporalConfig.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/TemporalConfig.java
@@ -1601,7 +1619,7 @@ class TemporalConfig {
 }
 ```
 
-- [ ] **Step 2: Create OrderCreatedConsumer.java**
+- [x] **Step 2: Create OrderCreatedConsumer.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/OrderCreatedConsumer.java
@@ -1634,7 +1652,7 @@ class OrderCreatedConsumer {
     @KafkaListener(topics = "order.created", groupId = "transflow-orchestration")
     void consume(OrderCreatedEvent event) {
         String workflowId = "saga-" + event.subscriptionId();
-        log.info("Starting saga — workflowId={} orderId={}", workflowId, event.orderId());
+        log.info("Starting saga â€” workflowId={} orderId={}", workflowId, event.orderId());
 
         var options = WorkflowOptions.newBuilder()
             .setWorkflowId(workflowId)
@@ -1646,13 +1664,13 @@ class OrderCreatedConsumer {
         try {
             WorkflowClient.start(workflow::run, event.orderId(), event.subscriptionId());
         } catch (WorkflowExecutionAlreadyStarted e) {
-            log.info("Saga already running for workflowId={} — idempotent, skipping", workflowId);
+            log.info("Saga already running for workflowId={} â€” idempotent, skipping", workflowId);
         }
     }
 }
 ```
 
-- [ ] **Step 3: Create PaymentProcessedConsumer.java**
+- [x] **Step 3: Create PaymentProcessedConsumer.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/PaymentProcessedConsumer.java
@@ -1679,7 +1697,7 @@ class PaymentProcessedConsumer {
     @KafkaListener(topics = "payment.processed", groupId = "transflow-orchestration")
     void consume(PaymentProcessedEvent event) {
         String workflowId = "saga-" + event.subscriptionId();
-        log.info("Signalling PAYMENT_OK — workflowId={}", workflowId);
+        log.info("Signalling PAYMENT_OK â€” workflowId={}", workflowId);
 
         workflowClient.newWorkflowStub(SubscriptionSagaWorkflow.class, workflowId)
             .paymentOk();
@@ -1687,7 +1705,7 @@ class PaymentProcessedConsumer {
 }
 ```
 
-- [ ] **Step 4: Create PaymentFailedConsumer.java**
+- [x] **Step 4: Create PaymentFailedConsumer.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/PaymentFailedConsumer.java
@@ -1714,7 +1732,7 @@ class PaymentFailedConsumer {
     @KafkaListener(topics = "payment.failed", groupId = "transflow-orchestration")
     void consume(PaymentFailedEvent event) {
         String workflowId = "saga-" + event.subscriptionId();
-        log.info("Signalling PAYMENT_FAILED — workflowId={}", workflowId);
+        log.info("Signalling PAYMENT_FAILED â€” workflowId={}", workflowId);
 
         workflowClient.newWorkflowStub(SubscriptionSagaWorkflow.class, workflowId)
             .paymentFailed();
@@ -1722,7 +1740,7 @@ class PaymentFailedConsumer {
 }
 ```
 
-- [ ] **Step 5: Create package-info.java for orchestration module**
+- [x] **Step 5: Create package-info.java for orchestration module**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/package-info.java
@@ -1733,7 +1751,7 @@ class PaymentFailedConsumer {
 package de.raphaellee.transflow.orchestration;
 ```
 
-- [ ] **Step 6: Run the full unit test suite**
+- [x] **Step 6: Run the full unit test suite**
 
 ```bash
 mvn test -P skip-integration-tests -q
@@ -1741,7 +1759,7 @@ mvn test -P skip-integration-tests -q
 
 Expected: all unit tests green (workflow tests + module tests).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/orchestration/
@@ -1756,7 +1774,7 @@ git commit -m "feat(orchestration): Temporal config + Kafka consumers for order/
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/fulfillment/*.java`
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/fulfillment/FulfillmentModuleTest.java`
 
-- [ ] **Step 1: Create FulfillmentRecord.java**
+- [x] **Step 1: Create FulfillmentRecord.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentRecord.java
@@ -1788,7 +1806,7 @@ class FulfillmentRecord {
 }
 ```
 
-- [ ] **Step 2: Create FulfillmentRecordRepository.java**
+- [x] **Step 2: Create FulfillmentRecordRepository.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentRecordRepository.java
@@ -1803,7 +1821,7 @@ interface FulfillmentRecordRepository extends JpaRepository<FulfillmentRecord, U
 }
 ```
 
-- [ ] **Step 3: Create FulfillmentCompletedEvent.java**
+- [x] **Step 3: Create FulfillmentCompletedEvent.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentCompletedEvent.java
@@ -1815,7 +1833,7 @@ import org.springframework.modulith.events.Externalized;
 public record FulfillmentCompletedEvent(String fulfillmentId, String orderId, String subscriptionId) {}
 ```
 
-- [ ] **Step 4: Create FulfillmentResponse.java**
+- [x] **Step 4: Create FulfillmentResponse.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentResponse.java
@@ -1833,7 +1851,7 @@ public record FulfillmentResponse(
 ) {}
 ```
 
-- [ ] **Step 5: Create FulfillmentService.java**
+- [x] **Step 5: Create FulfillmentService.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentService.java
@@ -1887,7 +1905,7 @@ public class FulfillmentService {
 }
 ```
 
-- [ ] **Step 6: Create FulfillmentConsumer.java**
+- [x] **Step 6: Create FulfillmentConsumer.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentConsumer.java
@@ -1917,10 +1935,10 @@ class FulfillmentConsumer {
     @KafkaListener(topics = "payment.processed", groupId = "transflow-fulfillment")
     void consume(PaymentProcessedEvent event) throws InterruptedException {
         String workflowId = "saga-" + event.subscriptionId();
-        log.info("Fulfillment starting — workflowId={} scenario={}", workflowId, event.scenario());
+        log.info("Fulfillment starting â€” workflowId={} scenario={}", workflowId, event.scenario());
 
         if ("fulfillment-timeout".equals(event.scenario())) {
-            log.info("Simulating slow fulfillment — sleeping 35s to trigger workflow timeout");
+            log.info("Simulating slow fulfillment â€” sleeping 35s to trigger workflow timeout");
             Thread.sleep(35_000);
         }
 
@@ -1928,15 +1946,15 @@ class FulfillmentConsumer {
 
         try {
             workflowClient.newUntypedWorkflowStub(workflowId).signal("fulfillmentDone");
-            log.info("FULFILLMENT_DONE signal sent — workflowId={}", workflowId);
+            log.info("FULFILLMENT_DONE signal sent â€” workflowId={}", workflowId);
         } catch (WorkflowNotFoundException e) {
-            log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded", workflowId);
+            log.warn("Workflow {} already closed â€” FULFILLMENT_DONE signal discarded", workflowId);
         }
     }
 }
 ```
 
-- [ ] **Step 7: Create FulfillmentController.java**
+- [x] **Step 7: Create FulfillmentController.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/FulfillmentController.java
@@ -1974,7 +1992,7 @@ public class FulfillmentController {
 }
 ```
 
-- [ ] **Step 8: Create package-info.java**
+- [x] **Step 8: Create package-info.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/fulfillment/package-info.java
@@ -1985,7 +2003,7 @@ public class FulfillmentController {
 package de.raphaellee.transflow.fulfillment;
 ```
 
-- [ ] **Step 9: Write FulfillmentModuleTest**
+- [x] **Step 9: Write FulfillmentModuleTest**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/fulfillment/FulfillmentModuleTest.java
@@ -2023,7 +2041,7 @@ class FulfillmentModuleTest {
 }
 ```
 
-- [ ] **Step 10: Run all unit tests**
+- [x] **Step 10: Run all unit tests**
 
 ```bash
 mvn test -P skip-integration-tests -q
@@ -2031,12 +2049,12 @@ mvn test -P skip-integration-tests -q
 
 Expected: all tests green.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/fulfillment/ \
   event-driven/src/test/java/de/raphaellee/transflow/fulfillment/
-git commit -m "feat(fulfillment): fulfillment module — consumer, service, signal, REST API"
+git commit -m "feat(fulfillment): fulfillment module â€” consumer, service, signal, REST API"
 ```
 
 ---
@@ -2049,7 +2067,7 @@ git commit -m "feat(fulfillment): fulfillment module — consumer, service, sign
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaStatusMapper.java`
 - Create: `event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaController.java`
 
-- [ ] **Step 1: Create SagaStep.java**
+- [x] **Step 1: Create SagaStep.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaStep.java
@@ -2060,7 +2078,7 @@ import java.time.Instant;
 public record SagaStep(String name, String status, Instant completedAt) {}
 ```
 
-- [ ] **Step 2: Create SagaStatus.java**
+- [x] **Step 2: Create SagaStatus.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaStatus.java
@@ -2081,7 +2099,7 @@ public record SagaStatus(
 ) {}
 ```
 
-- [ ] **Step 3: Create SagaStatusMapper.java**
+- [x] **Step 3: Create SagaStatusMapper.java**
 
 The Temporal Visibility API returns `WorkflowExecutionInfo` for list queries and `DescribeWorkflowExecutionResponse` for detail queries. The workflowId format is `saga-{subscriptionId}`.
 
@@ -2146,7 +2164,7 @@ class SagaStatusMapper {
     }
 
     private List<SagaStep> deriveSteps(String status) {
-        // Simplified step derivation — expand with actual history parsing if needed
+        // Simplified step derivation â€” expand with actual history parsing if needed
         return switch (status) {
             case "AWAITING_PAYMENT" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED", null),
@@ -2177,7 +2195,7 @@ class SagaStatusMapper {
 }
 ```
 
-- [ ] **Step 4: Create SagaController.java**
+- [x] **Step 4: Create SagaController.java**
 
 ```java
 // event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaController.java
@@ -2211,7 +2229,7 @@ public class SagaController {
     }
 
     @GetMapping
-    @Operation(summary = "List all sagas — uses Temporal advanced visibility (Elasticsearch)")
+    @Operation(summary = "List all sagas â€” uses Temporal advanced visibility (Elasticsearch)")
     ResponseEntity<List<SagaStatus>> listSagas() {
         var request = ListWorkflowExecutionsRequest.newBuilder()
             .setNamespace(namespace)
@@ -2244,7 +2262,7 @@ public class SagaController {
 }
 ```
 
-- [ ] **Step 5: Run full unit suite**
+- [x] **Step 5: Run full unit suite**
 
 ```bash
 mvn test -P skip-integration-tests -q
@@ -2252,12 +2270,12 @@ mvn test -P skip-integration-tests -q
 
 Expected: all tests green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add event-driven/src/main/java/de/raphaellee/transflow/orchestration/Saga*.java \
   event-driven/src/main/java/de/raphaellee/transflow/orchestration/SagaController.java
-git commit -m "feat(orchestration): saga REST API — list/get via Temporal Visibility API"
+git commit -m "feat(orchestration): saga REST API â€” list/get via Temporal Visibility API"
 ```
 
 ---
@@ -2267,7 +2285,7 @@ git commit -m "feat(orchestration): saga REST API — list/get via Temporal Visi
 **Files:**
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/ArchUnitTest.java`
 
-- [ ] **Step 1: Create ArchUnitTest.java**
+- [x] **Step 1: Create ArchUnitTest.java**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/ArchUnitTest.java
@@ -2299,7 +2317,7 @@ class ArchUnitTest {
             .haveSimpleName("OrderRepository");
 
         // Note: PaymentController is allowed to call OrderService (public API).
-        // The rule targets internal classes — Order entity and OrderRepository.
+        // The rule targets internal classes â€” Order entity and OrderRepository.
         ArchRule internalRule = noClasses()
             .that().resideInAPackage("de.raphaellee.transflow.payment..")
             .should().accessClassesThat()
@@ -2348,7 +2366,7 @@ class ArchUnitTest {
 }
 ```
 
-- [ ] **Step 2: Run ArchUnit tests**
+- [x] **Step 2: Run ArchUnit tests**
 
 ```bash
 mvn test -Dtest=ArchUnitTest -q
@@ -2356,11 +2374,11 @@ mvn test -Dtest=ArchUnitTest -q
 
 Expected: `Tests run: 4, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add event-driven/src/test/java/de/raphaellee/transflow/ArchUnitTest.java
-git commit -m "test(arch): ArchUnit cross-module boundary rules — payment/fulfillment isolation"
+git commit -m "test(arch): ArchUnit cross-module boundary rules â€” payment/fulfillment isolation"
 ```
 
 ---
@@ -2370,7 +2388,7 @@ git commit -m "test(arch): ArchUnit cross-module boundary rules — payment/fulf
 **Files:**
 - Create: `event-driven/src/main/resources/static/index.html`
 
-- [ ] **Step 1: Create index.html**
+- [x] **Step 1: Create index.html**
 
 ```html
 <!DOCTYPE html>
@@ -2378,7 +2396,7 @@ git commit -m "test(arch): ArchUnit cross-module boundary rules — payment/fulf
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Transflow — Subscription Lifecycle Saga</title>
+<title>Transflow â€” Subscription Lifecycle Saga</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
@@ -2442,10 +2460,10 @@ git commit -m "test(arch): ArchUnit cross-module boundary rules — payment/fulf
 </nav>
 
 <div class="blurb">
-  A <strong>subscription lifecycle saga</strong> — order &rarr; payment &rarr; fulfillment — orchestrated by
+  A <strong>subscription lifecycle saga</strong> â€” order &rarr; payment &rarr; fulfillment â€” orchestrated by
   <strong>Temporal</strong> and triggered via <strong>Kafka</strong> domain events. Built with
   <strong>Spring Boot 4</strong> + <strong>Spring Modulith</strong> (four enforced module boundaries in one JVM).
-  Each button triggers a real distributed workflow. Watch it propagate in real time — or follow the full trace in
+  Each button triggers a real distributed workflow. Watch it propagate in real time â€” or follow the full trace in
   <a href="/temporal" target="_blank" style="color:#58a6ff">Temporal UI</a> and
   <a href="/kafka" target="_blank" style="color:#58a6ff">Kafka UI</a>.
 </div>
@@ -2455,29 +2473,29 @@ git commit -m "test(arch): ArchUnit cross-module boundary rules — payment/fulf
     <h2>Trigger</h2>
 
     <button class="btn" id="btn-happy" onclick="trigger('happy-path')">
-      <span class="btn-title">Happy Path <span class="spinner">⏳</span></span>
+      <span class="btn-title">Happy Path <span class="spinner">â³</span></span>
       <span class="btn-desc">order &rarr; payment &rarr; fulfillment &rarr; COMPLETED</span>
     </button>
 
     <button class="btn" id="btn-fail" onclick="trigger('payment-fail')">
-      <span class="btn-title">Payment Failure <span class="spinner">⏳</span></span>
+      <span class="btn-title">Payment Failure <span class="spinner">â³</span></span>
       <span class="btn-desc">order &rarr; payment fails &rarr; PAYMENT_FAILED</span>
     </button>
 
     <button class="btn" id="btn-timeout" onclick="trigger('fulfillment-timeout')">
-      <span class="btn-title">Fulfillment Timeout <span class="spinner">⏳</span></span>
+      <span class="btn-title">Fulfillment Timeout <span class="spinner">â³</span></span>
       <span class="btn-desc">Fulfillment sleeps 35s, workflow times out at 30s &rarr; TIMED_OUT</span>
     </button>
 
     <button class="btn" id="btn-idem" onclick="triggerIdempotency()">
-      <span class="btn-title">Test Idempotency <span class="spinner">⏳</span></span>
-      <span class="btn-desc">Same subscriptionId fired twice — only one saga starts</span>
+      <span class="btn-title">Test Idempotency <span class="spinner">â³</span></span>
+      <span class="btn-desc">Same subscriptionId fired twice â€” only one saga starts</span>
     </button>
   </div>
 
   <div class="saga-panel">
     <h2>Live Saga List</h2>
-    <div id="saga-list"><p class="empty">No sagas yet — click a trigger button.</p></div>
+    <div id="saga-list"><p class="empty">No sagas yet â€” click a trigger button.</p></div>
   </div>
 </div>
 
@@ -2564,14 +2582,14 @@ async function pollSagas() {
     lastSagaCount = sagas.length;
   } catch (err) {
     connDot.className = 'status-dot error';
-    connDot.title = 'Backend unreachable — retrying';
+    connDot.title = 'Backend unreachable â€” retrying';
   }
 }
 
 function renderSagas(sagas) {
   const list = document.getElementById('saga-list');
   if (sagas.length === 0) {
-    list.innerHTML = '<p class="empty">No sagas yet — click a trigger button.</p>';
+    list.innerHTML = '<p class="empty">No sagas yet â€” click a trigger button.</p>';
     return;
   }
   list.innerHTML = sagas.map(s => `
@@ -2602,7 +2620,7 @@ setInterval(pollSagas, 2000);
 </html>
 ```
 
-- [ ] **Step 2: Verify file is saved**
+- [x] **Step 2: Verify file is saved**
 
 ```bash
 ls -la event-driven/src/main/resources/static/index.html
@@ -2610,11 +2628,11 @@ ls -la event-driven/src/main/resources/static/index.html
 
 Expected: file exists.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add event-driven/src/main/resources/static/index.html
-git commit -m "feat(ui): HTML status page — trigger buttons, live saga list, connection indicator"
+git commit -m "feat(ui): HTML status page â€” trigger buttons, live saga list, connection indicator"
 ```
 
 ---
@@ -2624,7 +2642,7 @@ git commit -m "feat(ui): HTML status page — trigger buttons, live saga list, c
 **Files:**
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/integration/SagaIntegrationTest.java`
 
-- [ ] **Step 1: Create SagaIntegrationTest.java**
+- [x] **Step 1: Create SagaIntegrationTest.java**
 
 ```java
 // event-driven/src/test/java/de/raphaellee/transflow/integration/SagaIntegrationTest.java
@@ -2737,14 +2755,14 @@ class SagaIntegrationTest {
         assertThat(response.getBody().get("status")).isEqualTo("FAILED");
     }
 
-    // NOTE: Full end-to-end saga tests (order.created → payment.processed → FULFILLMENT_DONE → COMPLETED)
+    // NOTE: Full end-to-end saga tests (order.created â†’ payment.processed â†’ FULFILLMENT_DONE â†’ COMPLETED)
     // require a running Temporal server. For local full-saga integration tests, start the Docker Compose
     // stack (docker compose up) and run the app directly. The TestWorkflowEnvironment tests in
     // SubscriptionSagaWorkflowTest cover the saga state machine logic with zero infrastructure.
 }
 ```
 
-- [ ] **Step 2: Run integration tests**
+- [x] **Step 2: Run integration tests**
 
 Requires Docker running:
 
@@ -2755,7 +2773,7 @@ mvn verify -P integration-tests -Dfailsafe.rerunFailingTestsCount=1 -q
 
 Expected: `Tests run: 5, Failures: 0, Errors: 0, Skipped: 0`
 
-- [ ] **Step 3: Run full unit suite one more time to confirm nothing broken**
+- [x] **Step 3: Run full unit suite one more time to confirm nothing broken**
 
 ```bash
 mvn test -P skip-integration-tests -q
@@ -2763,11 +2781,11 @@ mvn test -P skip-integration-tests -q
 
 Expected: all tests green.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add event-driven/src/test/java/de/raphaellee/transflow/integration/
-git commit -m "test(integration): Testcontainers Kafka + Postgres — order/payment API integration tests"
+git commit -m "test(integration): Testcontainers Kafka + Postgres â€” order/payment API integration tests"
 ```
 
 ---
@@ -2777,7 +2795,7 @@ git commit -m "test(integration): Testcontainers Kafka + Postgres — order/paym
 **Files:**
 - Create: `.github/workflows/integration-tests.yml`
 
-- [ ] **Step 1: Create integration-tests.yml**
+- [x] **Step 1: Create integration-tests.yml**
 
 ```yaml
 # .github/workflows/integration-tests.yml
@@ -2812,15 +2830,15 @@ jobs:
           DOCKER_HOST: unix:///var/run/docker.sock
 ```
 
-- [ ] **Step 2: Commit and push**
+- [x] **Step 2: Commit and push**
 
 ```bash
 git add .github/workflows/integration-tests.yml
-git commit -m "ci: add integration-tests.yml — Testcontainers job triggered on PR to main"
+git commit -m "ci: add integration-tests.yml â€” Testcontainers job triggered on PR to main"
 git push origin main
 ```
 
-- [ ] **Step 3: Verify CI passes**
+- [x] **Step 3: Verify CI passes**
 
 ```bash
 gh run list --limit 3
@@ -2836,18 +2854,18 @@ Expected: both `CI` (fast) and when a PR is opened, `Integration Tests` jobs app
 
 | Spec requirement | Covered by |
 |---|---|
-| Four Modulith modules: orchestration, order, payment, fulfillment | Tasks 4–9 |
+| Four Modulith modules: orchestration, order, payment, fulfillment | Tasks 4â€“9 |
 | workflowId = "saga-" + subscriptionId | Tasks 7, 8 |
-| Kafka-only fulfillment trigger | Task 8 — FulfillmentConsumer |
-| WorkflowNotFoundException handling | Task 8 — FulfillmentConsumer |
+| Kafka-only fulfillment trigger | Task 8 â€” FulfillmentConsumer |
+| WorkflowNotFoundException handling | Task 8 â€” FulfillmentConsumer |
 | Two consumer groups (transflow-orchestration, transflow-fulfillment) | Tasks 7, 8 |
 | PaymentProcessedEvent fields: orderId, subscriptionId, scenario | Task 5 |
-| TestWorkflowEnvironment — 4 test cases | Task 6 |
+| TestWorkflowEnvironment â€” 4 test cases | Task 6 |
 | ArchUnit cross-module rules | Task 10 |
 | Docker Compose 11 services + healthcheck chain | Task 1 |
 | Elasticsearch for Temporal advanced visibility | Task 1 |
 | mem_limits for all services | Task 1 |
-| Flyway migration — transflow schema | Task 3 |
+| Flyway migration â€” transflow schema | Task 3 |
 | GET /api/sagas using Temporal Visibility API | Task 9 |
 | HTML status page: architecture blurb | Task 11 |
 | HTML status page: button disable + spinner | Task 11 |
@@ -2857,7 +2875,7 @@ Expected: both `CI` (fast) and when a PR is opened, `Integration Tests` jobs app
 | Integration tests Testcontainers Kafka + Postgres | Task 12 |
 | integration-tests.yml CI job | Task 13 |
 | Caddyfile routes: transflow, temporal, kafka | Task 1 |
-| springdoc OpenAPI at /swagger-ui/index.html | Task 2 — application.yml |
+| springdoc OpenAPI at /swagger-ui/index.html | Task 2 â€” application.yml |
 | Scenario: fulfillment-timeout (Thread.sleep 35s) | Task 8 |
 | Scenario: payment failure | Tasks 5, 7 |
 | Scenario: idempotency (WorkflowExecutionAlreadyStarted) | Task 7 |
@@ -2870,30 +2888,30 @@ No TBD, TODO, "implement later", "similar to Task N", or missing code blocks fou
 
 ### Type consistency
 
-- `OrderCreatedEvent` fields `orderId`, `subscriptionId` — used consistently in Task 5, 7
-- `PaymentProcessedEvent` fields `orderId`, `subscriptionId`, `scenario` — used consistently in Tasks 5, 7, 8
-- `PaymentFailedEvent` fields `orderId`, `subscriptionId` — consistent across Tasks 5, 7
-- `FulfillmentCompletedEvent` — consistent in Tasks 8
-- `OrderResponse` record fields `orderId`, `subscriptionId`, `status`, `createdAt` — consistent in Tasks 4, 5 (`PaymentController` calls `order.subscriptionId()`)
-- Signal method names on workflow: `paymentOk()`, `paymentFailed()`, `fulfillmentDone()` — FulfillmentConsumer uses `signal("fulfillmentDone")` (untyped) — ✓ matches `@SignalMethod` name
+- `OrderCreatedEvent` fields `orderId`, `subscriptionId` â€” used consistently in Task 5, 7
+- `PaymentProcessedEvent` fields `orderId`, `subscriptionId`, `scenario` â€” used consistently in Tasks 5, 7, 8
+- `PaymentFailedEvent` fields `orderId`, `subscriptionId` â€” consistent across Tasks 5, 7
+- `FulfillmentCompletedEvent` â€” consistent in Tasks 8
+- `OrderResponse` record fields `orderId`, `subscriptionId`, `status`, `createdAt` â€” consistent in Tasks 4, 5 (`PaymentController` calls `order.subscriptionId()`)
+- Signal method names on workflow: `paymentOk()`, `paymentFailed()`, `fulfillmentDone()` â€” FulfillmentConsumer uses `signal("fulfillmentDone")` (untyped) â€” âœ“ matches `@SignalMethod` name
 
 ---
 
-## Amendments — Eng Review 2026-05-17
+## Amendments â€” Eng Review 2026-05-17
 
 Apply these corrections when implementing the tasks. They supersede the original code blocks.
 
-### A1 — Workflow timeout as parameter (D1 — Temporal non-determinism fix)
+### A1 â€” Workflow timeout as parameter (D1 â€” Temporal non-determinism fix)
 
 **Affects: Task 6 (SubscriptionSagaWorkflow, SubscriptionSagaWorkflowImpl, test) + Task 7 (OrderCreatedConsumer)**
 
-`SubscriptionSagaWorkflow.java` — add timeout to `run()`:
+`SubscriptionSagaWorkflow.java` â€” add timeout to `run()`:
 ```java
 @WorkflowMethod
 void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds);
 ```
 
-`SubscriptionSagaWorkflowImpl.java` — use parameter instead of `System.getenv()`:
+`SubscriptionSagaWorkflowImpl.java` â€” use parameter instead of `System.getenv()`:
 ```java
 @Override
 public void run(String orderId, String subscriptionId, int fulfillmentTimeoutSeconds) {
@@ -2904,7 +2922,7 @@ public void run(String orderId, String subscriptionId, int fulfillmentTimeoutSec
 }
 ```
 
-`OrderCreatedConsumer.java` — inject timeout and pass to workflow:
+`OrderCreatedConsumer.java` â€” inject timeout and pass to workflow:
 ```java
 @Value("${saga.fulfillment-timeout-seconds:30}")
 private int fulfillmentTimeoutSeconds;
@@ -2917,19 +2935,19 @@ All 4 `SubscriptionSagaWorkflowTest` tests: add `30` as third argument to `Workf
 
 ---
 
-### A2 — FulfillmentConsumer: fix InterruptedException handling (D2)
+### A2 â€” FulfillmentConsumer: fix InterruptedException handling (D2)
 
 **Affects: Task 8 (FulfillmentConsumer.java) + Task 2 (application.yml)**
 
-`FulfillmentConsumer.consume()` — remove `throws InterruptedException`, wrap sleep:
+`FulfillmentConsumer.consume()` â€” remove `throws InterruptedException`, wrap sleep:
 ```java
 @KafkaListener(topics = "payment.processed", groupId = "transflow-fulfillment")
 void consume(PaymentProcessedEvent event) {
     String workflowId = "saga-" + event.subscriptionId();
-    log.info("Fulfillment starting — workflowId={} scenario={}", workflowId, event.scenario());
+    log.info("Fulfillment starting â€” workflowId={} scenario={}", workflowId, event.scenario());
 
     if ("fulfillment-timeout".equals(event.scenario())) {
-        log.info("Simulating slow fulfillment — sleeping 35s to trigger workflow timeout");
+        log.info("Simulating slow fulfillment â€” sleeping 35s to trigger workflow timeout");
         try {
             Thread.sleep(35_000);
         } catch (InterruptedException e) {
@@ -2942,14 +2960,14 @@ void consume(PaymentProcessedEvent event) {
 
     try {
         workflowClient.newUntypedWorkflowStub(workflowId).signal("fulfillmentDone");
-        log.info("FULFILLMENT_DONE signal sent — workflowId={}", workflowId);
+        log.info("FULFILLMENT_DONE signal sent â€” workflowId={}", workflowId);
     } catch (WorkflowNotFoundException e) {
-        log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded (fulfillment record retained as audit trail)", workflowId);
+        log.warn("Workflow {} already closed â€” FULFILLMENT_DONE signal discarded (fulfillment record retained as audit trail)", workflowId);
     }
 }
 ```
 
-`application.yml` — add to consumer config:
+`application.yml` â€” add to consumer config:
 ```yaml
 spring:
   kafka:
@@ -2960,7 +2978,7 @@ spring:
 
 ---
 
-### A3 — SagaIntegrationTest: mock Temporal (D3) + Temporal Testcontainer E2E test (Task 12 expansion)
+### A3 â€” SagaIntegrationTest: mock Temporal (D3) + Temporal Testcontainer E2E test (Task 12 expansion)
 
 **Affects: Task 12 (SagaIntegrationTest.java)**
 
@@ -3020,7 +3038,7 @@ class SagaIntegrationTest {
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
     }
 
-    // Mock Temporal — these tests cover order/payment REST API, not the full saga wire
+    // Mock Temporal â€” these tests cover order/payment REST API, not the full saga wire
     @MockBean
     WorkflowClient workflowClient;
 
@@ -3054,7 +3072,7 @@ class SagaIntegrationTest {
     @Test
     void postOrder_concurrentDuplicate_returns409NotFiveHundred() throws Exception {
         String sub = "sub-concurrent-" + UUID.randomUUID();
-        // Simulate concurrent duplicate — one must be 201, other must be 409 (not 500)
+        // Simulate concurrent duplicate â€” one must be 201, other must be 409 (not 500)
         var r1 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
         var r2 = rest.postForEntity("/api/orders", Map.of("subscriptionId", sub), Map.class);
         assertThat(r1.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -3137,7 +3155,7 @@ class SagaFlowIntegrationTest {
     @Container
     @SuppressWarnings("resource")
     static GenericContainer<?> temporal = new GenericContainer<>("temporalio/auto-setup:1.29.6.1")
-        .withEnv("DB", "sqlite")  // embedded SQLite — no Postgres needed for test Temporal
+        .withEnv("DB", "sqlite")  // embedded SQLite â€” no Postgres needed for test Temporal
         .withExposedPorts(7233)
         .waitingFor(Wait.forLogMessage(".*temporal_server.*started.*", 1)
             .withStartupTimeout(Duration.ofSeconds(60)));
@@ -3160,8 +3178,8 @@ class SagaFlowIntegrationTest {
         var order = orderService.createOrder("e2e-sub-" + System.currentTimeMillis());
         paymentService.confirmPayment(order.orderId(), order.subscriptionId(), "happy-path");
 
-        // Await saga completion via Temporal query — up to 15s
-        // The Kafka events trigger consumer → worker signals → workflow completes
+        // Await saga completion via Temporal query â€” up to 15s
+        // The Kafka events trigger consumer â†’ worker signals â†’ workflow completes
         await().atMost(15, SECONDS).untilAsserted(() -> {
             // Fulfillment record should exist when saga completes
             // (proxy for saga COMPLETED state without direct Temporal query)
@@ -3171,15 +3189,15 @@ class SagaFlowIntegrationTest {
 }
 ```
 
-> Note: `temporalio/auto-setup` with `DB=sqlite` uses embedded storage — no Postgres dep for the Temporal server itself in this test. Verify this env var is supported; if not, use `temporalio/server` with an in-memory backend or skip and document as "requires docker compose up" for full E2E.
+> Note: `temporalio/auto-setup` with `DB=sqlite` uses embedded storage â€” no Postgres dep for the Temporal server itself in this test. Verify this env var is supported; if not, use `temporalio/server` with an in-memory backend or skip and document as "requires docker compose up" for full E2E.
 
 ---
 
-### A4 — SagaStatusMapper: fix both timestamp and running status bugs (D4)
+### A4 â€” SagaStatusMapper: fix both timestamp and running status bugs (D4)
 
 **Affects: Task 9 (SagaStatusMapper.java, SagaController.java)**
 
-`SagaController.java` — inject `WorkflowClient` and pass to mapper:
+`SagaController.java` â€” inject `WorkflowClient` and pass to mapper:
 ```java
 SagaController(WorkflowClient workflowClient, SagaStatusMapper mapper) {
     this.stubs = workflowClient.getWorkflowServiceStubs();
@@ -3211,7 +3229,7 @@ var sagas = response.getExecutionsList().stream()
     .toList();
 ```
 
-`SagaStatusMapper.fromExecutionInfo()` — fix timestamp:
+`SagaStatusMapper.fromExecutionInfo()` â€” fix timestamp:
 ```java
 Instant updatedAt = info.hasCloseTime()
     ? Instant.ofEpochSecond(info.getCloseTime().getSeconds(), info.getCloseTime().getNanos())
@@ -3222,7 +3240,7 @@ Move `deriveSteps()` to `SagaController` (or keep in mapper and expose it public
 
 ---
 
-### A5 — GlobalExceptionHandler: add StatusRuntimeException → 503 and DataIntegrityViolation → 409 (D5 + D11)
+### A5 â€” GlobalExceptionHandler: add StatusRuntimeException â†’ 503 and DataIntegrityViolation â†’ 409 (D5 + D11)
 
 **Affects: Task 4 (GlobalExceptionHandler.java)**
 
@@ -3273,11 +3291,11 @@ public class GlobalExceptionHandler {
 
 ---
 
-### A6 — PaymentService: remove null-guard overloads (D6) + fix PaymentModuleTest
+### A6 â€” PaymentService: remove null-guard overloads (D6) + fix PaymentModuleTest
 
 **Affects: Task 5 (PaymentService.java, PaymentModuleTest.java)**
 
-`PaymentService.java` — replace with single-signature methods (subscriptionId always required):
+`PaymentService.java` â€” replace with single-signature methods (subscriptionId always required):
 ```java
 @Transactional
 public PaymentResponse confirmPayment(UUID orderId, String subscriptionId, String scenario) {
@@ -3297,7 +3315,7 @@ public PaymentResponse failPayment(UUID orderId, String subscriptionId) {
 }
 ```
 
-`PaymentModuleTest.java` — update to use 3-arg methods with a real subscriptionId:
+`PaymentModuleTest.java` â€” update to use 3-arg methods with a real subscriptionId:
 ```java
 @Test
 void confirmPayment_createsPaymentRecord_andPublishesEvent() {
@@ -3317,11 +3335,11 @@ void failPayment_createsFailedRecord_andPublishesEvent() {
 }
 ```
 
-> Note: `@ApplicationModuleTest(mode = BootstrapMode.ALL_DEPENDENCIES)` already set — `OrderService` is available.
+> Note: `@ApplicationModuleTest(mode = BootstrapMode.ALL_DEPENDENCIES)` already set â€” `OrderService` is available.
 
 ---
 
-### A7 — Consumer tests: OrchestratingConsumersTest + FulfillmentConsumerTest (D7)
+### A7 â€” Consumer tests: OrchestratingConsumersTest + FulfillmentConsumerTest (D7)
 
 **New files:**
 - Create: `event-driven/src/test/java/de/raphaellee/transflow/orchestration/OrchestratingConsumersTest.java`
@@ -3468,7 +3486,7 @@ class FulfillmentConsumerTest {
         doThrow(new WorkflowNotFoundException(null, "saga-sub-timeout", null))
             .when(mockStub).signal("fulfillmentDone");
 
-        // Should NOT throw — exception caught and logged
+        // Should NOT throw â€” exception caught and logged
         kafkaTemplate.send("payment.processed", event).get();
         await().atMost(5, SECONDS).untilAsserted(() ->
             verify(mockStub).signal("fulfillmentDone")
@@ -3479,17 +3497,17 @@ class FulfillmentConsumerTest {
 
 ---
 
-### A8 — Task 14: event-driven README with Kafka API contract (new task)
+### A8 â€” Task 14: event-driven README with Kafka API contract (new task)
 
 **Files:**
 - Create: `event-driven/README.md`
 
-- [ ] **Step 1: Create event-driven/README.md**
+- [x] **Step 1: Create event-driven/README.md**
 
 ```markdown
 # transflow-core
 
-Subscription lifecycle saga — order → payment → fulfillment — using Temporal, Kafka, and Spring Modulith.
+Subscription lifecycle saga â€” order â†’ payment â†’ fulfillment â€” using Temporal, Kafka, and Spring Modulith.
 
 **Live demo:** https://transflow.raphaellee.de  
 **Temporal UI:** https://temporal.raphaellee.de  
@@ -3500,10 +3518,10 @@ Subscription lifecycle saga — order → payment → fulfillment — using Temp
 
 ```
 Spring Boot 4 (single JVM)
-├── module: orchestration  — SubscriptionSagaWorkflow (Temporal) + Kafka consumers
-├── module: order          — Order entity, REST API, order.created event
-├── module: payment        — Payment entity, REST API, payment.processed/failed events
-└── module: fulfillment    — FulfillmentRecord entity, Kafka consumer, fulfillment.completed event
+â”œâ”€â”€ module: orchestration  â€” SubscriptionSagaWorkflow (Temporal) + Kafka consumers
+â”œâ”€â”€ module: order          â€” Order entity, REST API, order.created event
+â”œâ”€â”€ module: payment        â€” Payment entity, REST API, payment.processed/failed events
+â””â”€â”€ module: fulfillment    â€” FulfillmentRecord entity, Kafka consumer, fulfillment.completed event
 
 Module boundaries enforced by Spring Modulith + ArchUnit (cross-package imports fail CI).
 ```
@@ -3517,7 +3535,7 @@ These topics are the **public integration surface** of transflow-core. A future 
 | `order.created` | order module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
 | `payment.processed` | payment module | transflow-orchestration, transflow-fulfillment | `{"orderId": "UUID", "subscriptionId": "string", "scenario": "string"}` |
 | `payment.failed` | payment module | transflow-orchestration | `{"orderId": "UUID", "subscriptionId": "string"}` |
-| `fulfillment.completed` | fulfillment module | — (audit only) | `{"fulfillmentId": "UUID", "orderId": "UUID", "subscriptionId": "string"}` |
+| `fulfillment.completed` | fulfillment module | â€” (audit only) | `{"fulfillmentId": "UUID", "orderId": "UUID", "subscriptionId": "string"}` |
 
 **Key convention:** none (null key). Messages are not keyed; ordering within a topic is not required.
 
@@ -3527,19 +3545,19 @@ These topics are the **public integration surface** of transflow-core. A future 
 
 ```
 AWAITING_PAYMENT
-  ├── [paymentOk signal]      → FULFILLMENT_PROCESSING
-  │     ├── [fulfillmentDone] → COMPLETED
-  │     └── [30s timeout]    → TIMED_OUT
-  └── [paymentFailed signal]  → PAYMENT_FAILED
+  â”œâ”€â”€ [paymentOk signal]      â†’ FULFILLMENT_PROCESSING
+  â”‚     â”œâ”€â”€ [fulfillmentDone] â†’ COMPLETED
+  â”‚     â””â”€â”€ [30s timeout]    â†’ TIMED_OUT
+  â””â”€â”€ [paymentFailed signal]  â†’ PAYMENT_FAILED
 ```
 
 ## Module Dependencies
 
 ```
-orchestration → order, payment, fulfillment (all public APIs)
-payment       → order (OrderService public API only)
-fulfillment   → payment (PaymentProcessedEvent public record)
-order         → (none)
+orchestration â†’ order, payment, fulfillment (all public APIs)
+payment       â†’ order (OrderService public API only)
+fulfillment   â†’ payment (PaymentProcessedEvent public record)
+order         â†’ (none)
 ```
 
 ## Running Locally
@@ -3553,11 +3571,11 @@ docker compose up -d
 ```
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add event-driven/README.md
-git commit -m "docs: event-driven README — Kafka API contract, saga state machine, module dependencies"
+git commit -m "docs: event-driven README â€” Kafka API contract, saga state machine, module dependencies"
 ```
 
 ---
@@ -3566,10 +3584,10 @@ git commit -m "docs: event-driven README — Kafka API contract, saga state mach
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
-| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | â€” | â€” |
 | Outside Voice | `/plan-eng-review` (subagent) | Independent 2nd opinion | 1 | issues_found | 3 findings: concurrent 409, DB/Temporal inconsistency, Spring Boot version check |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 2 | CLEAR (PLAN) | 9 issues, 0 critical gaps |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | â€” | â€” |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 1 | CLEAR | 4 issues, 0 critical gaps |
 
-**VERDICT: ENG + DX CLEARED — ready to implement. Apply Amendments A1–A8 before coding.**
+**VERDICT: ENG + DX CLEARED â€” ready to implement. Apply Amendments A1â€“A8 before coding.**

@@ -1,8 +1,14 @@
 # Weekend 3 Design — Keycloak OAuth2 Auth + UI Toasts
 
 **Date:** 2026-05-18
-**Revised:** 2026-05-19 (post eng review)
+**Revised:** 2026-05-19 (post eng review), 2026-05-20 (Weekend 2 learnings applied)
 **Status:** Approved
+
+> **Amendments from Weekend 2 execution (2026-05-20):**
+> 1. **Keycloak JVM heap cap added** — `JAVA_OPTS_APPEND: "-Xms128m -Xmx600m"` required. `mem_limit` is a cgroup hard limit but JVM ergonomics size the heap from host RAM by default. kafka-ui hit this exact bug at `mem_limit: 256m` with no `-Xmx` and OOM-restarted on first page visit.
+> 2. **Healthcheck port corrected** — Keycloak 26 serves `/health/ready` on management port **9000**, not main port 8080. Original spec had `localhost:8080/health/ready` which would always fail.
+> 3. **Duplicate `command` field removed** — spec had both `command: start-dev` and `command: start-dev --import-realm`; kept the latter (second key wins in YAML but the inconsistency was confusing).
+> 4. **`kafka-init` dependency preserved** — original spec's `transflow-core.depends_on` block would have dropped the `kafka-init: service_completed_successfully` condition that ensures Kafka topics exist before the app starts.
 **Module:** `event-driven` (`transflow-core`)
 **Live demo:** `transflow.raphaellee.de`
 
@@ -66,7 +72,7 @@ New `keycloak` service added to `compose/docker-compose.yml`:
 keycloak:
   image: quay.io/keycloak/keycloak:26
   restart: always
-  command: start-dev
+  command: start-dev --import-realm
   environment:
     KC_DB: postgres
     KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -77,14 +83,16 @@ keycloak:
     KC_PROXY_HEADERS: xforwarded  # Keycloak reports HTTPS externally via X-Forwarded headers
     KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
     KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    JAVA_OPTS_APPEND: "-Xms128m -Xmx600m"  # cap JVM heap — mem_limit is a cgroup hard limit but
+                                             # JVM ergonomics size from host RAM by default
   volumes:
     - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
-  command: start-dev --import-realm
   depends_on:
     postgres:
       condition: service_healthy
   healthcheck:
-    test: ["CMD-SHELL", "curl -sf http://localhost:8080/health/ready || exit 1"]
+    # Keycloak 26 serves /health/ready on the management port (9000), not the main port (8080)
+    test: ["CMD-SHELL", "curl -sf http://localhost:9000/health/ready || exit 1"]
     interval: 15s
     timeout: 10s
     retries: 10
@@ -92,13 +100,15 @@ keycloak:
   mem_limit: 768m
 ```
 
-`transflow-core`'s `depends_on` extended:
+`transflow-core`'s `depends_on` extended (preserve existing `kafka-init` dependency):
 
 ```yaml
 transflow-core:
   depends_on:
     temporal:
       condition: service_healthy
+    kafka-init:
+      condition: service_completed_successfully  # preserve — ensures topics exist before app starts
     keycloak:
       condition: service_healthy   # wait for Keycloak OIDC discovery document to be ready
 ```
