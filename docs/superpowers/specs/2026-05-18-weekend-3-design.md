@@ -431,7 +431,7 @@ Same pattern, but Apple uses a JWT-based client secret (generated from a `.p8` k
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 6 issues found, 0 critical gaps |
-| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | Captured in event-driven/DESIGN.md |
+| Design Review | `/plan-design-review` | UI/UX gaps | 2 | CLEAR | score: 5/10 → 9/10, 7 decisions made |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
 - **UNRESOLVED:** 0
