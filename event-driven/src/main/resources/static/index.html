@@ -45,6 +45,14 @@
   nav .logo { font-weight: 700; font-size: 16px; color: var(--text-link); margin-right: auto; }
   nav a { color: var(--accent-blue); font-size: 13px; text-decoration: none; }
   nav a:hover { text-decoration: underline; }
+  /* Demo credentials rendered via CSS attr() — not in selectable DOM text, not crawlable */
+  .demo-hint { position: relative; }
+  .demo-hint::after {
+    content: " (" attr(data-u) " / " attr(data-p) ")";
+    color: var(--text-dim);
+    font-size: 11px;
+    pointer-events: none;
+  }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); display: inline-block; margin-right: 4px; }
   .status-dot.error { background: var(--accent-red); }
 
@@ -123,9 +131,10 @@
 <nav>
   <span class="logo">transflow</span>
   <span id="conn-dot" class="status-dot" title="Backend connected"></span>
-  <a href="https://temporal.raphaellee.de" target="_blank">Temporal UI</a>
-  <a href="https://kafka.raphaellee.de" target="_blank">Kafka UI</a>
+  <a href="https://temporal.raphaellee.de" target="_blank" class="demo-hint" data-u="demo" data-p="your-demo-password">Temporal UI</a>
+  <a href="https://kafka.raphaellee.de" target="_blank" class="demo-hint" data-u="demo" data-p="your-demo-password">Kafka UI</a>
   <a href="/swagger-ui/index.html" target="_blank">Swagger UI</a>
+  <a href="https://github.com/raphaelplee/labs" target="_blank" title="Source code">GitHub</a>
 </nav>
 
 <div class="blurb">

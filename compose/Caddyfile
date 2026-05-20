@@ -1,5 +1,5 @@
-raphaellee.de {
-  respond "coming soon" 200
+raphaellee.de, www.raphaellee.de {
+  redir https://transflow.raphaellee.de{uri} permanent
 }
 
 transflow.raphaellee.de {
