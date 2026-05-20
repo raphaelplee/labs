@@ -8,6 +8,7 @@ public record SagaStatus(
     String sagaId,
     UUID subscriptionId,
     String status,
+    UUID orderId,
     Instant startedAt,
     Instant closedAt,
     List<SagaStep> steps

@@ -76,7 +76,7 @@ Temporal buffers signals that arrive before the workflow reaches the matching `W
 
 ## Docker Compose Stack
 
-Eleven services, one internal Docker network. Nothing exposed to the host except Caddy (80/443).
+Ten services, one internal Docker network. Nothing exposed to the host except Caddy (80/443).
 
 | Service | Image | Internal port | External |
 |---|---|---|---|
@@ -85,6 +85,7 @@ Eleven services, one internal Docker network. Nothing exposed to the host except
 | `adminer` | `adminer:4` | 8080 | SSH tunnel (`localhost:5050`) |
 | `elasticsearch` | `elasticsearch:8` | 9200 | — |
 | `kafka` | `apache/kafka:4.2.0` | 9092 | — |
+| `kafka-init` | `apache/kafka:4.2.0` | — | init container — creates topics, exits on success |
 | `kafka-ui` | `kafbat/kafka-ui:v1.3.0` | 8090 | `kafka.raphaellee.de` |
 | `temporal` | `temporalio/auto-setup:1.29.6.1` | 7233 | — |
 | `temporal-ui` | `temporalio/ui:2.29.2` | 8233 | `temporal.raphaellee.de` |
@@ -272,12 +273,12 @@ POST /api/payments/{orderId}/fail
 # Orchestration module
 GET /api/sagas
   → uses Temporal listWorkflowExecutions (Visibility API, single gRPC call)
-  → [ { "sagaId", "subscriptionId", "status", "startedAt", "closedAt", "steps": [...] } ]
-  (closedAt is null for running workflows; no scenario or orderId in SagaStatus — see SagaStatus.java)
+  → [ { "sagaId", "subscriptionId", "status", "orderId", "startedAt", "closedAt", "steps": [...] } ]
+  (closedAt is null for running workflows; orderId read from workflow memo set at start time — null for old workflows)
 
 GET /api/sagas/{sagaId}
   → uses Temporal describeWorkflowExecution (history for step detail)
-  → { "sagaId", "subscriptionId", "status", "startedAt", "closedAt",
+  → { "sagaId", "subscriptionId", "status", "orderId", "startedAt", "closedAt",
       "steps": [
         { "name": "ORDER_CREATED",           "status": "COMPLETED" },
         { "name": "AWAITING_PAYMENT",        "status": "COMPLETED" },
@@ -430,7 +431,7 @@ These three are tagged `@Tag("unit")` and included in the default Surefire run.
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 7 issues, 0 critical gaps |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | 7-pass review on 2026-05-20; CSS token system, component table, step-by-step UI, toast a11y, 401 banner copy all applied |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 1 | CLEAR | 4 issues, 0 critical gaps |
 
 **VERDICT: ENG + DX CLEARED — ready to implement.**

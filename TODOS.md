@@ -8,15 +8,11 @@ Deferred items from the /plan-ceo-review session on 2026-05-14.
 
 ### Full DESIGN.md with design system documentation
 
-**Partially complete (2026-05-20):** Color token system (20 tokens), component table (14 components including new step-by-step elements), auth strategy, blurb copy, and typography rationale are now documented. Blurb text corrected (authorization_code flow, not Resource Server).
+**Complete (2026-05-20):** Color token system (20 tokens), component table (14 components), spacing/sizing section (spacing scale, component sizes, layout, pulse animation), auth strategy, blurb copy, and typography rationale are all documented. Blurb text corrected (authorization_code flow, not Resource Server).
 
-**What remains:** Add a spacing/sizing section, document the pulse keyframe animation intent, add a "decisions deferred" section for known design debt (mobile layout, full Keycloak theme, HTMX rewrite).
+**What remains:** "Decisions deferred" section — known design debt (mobile layout, full Keycloak theme, HTMX rewrite). Low priority.
 
-**Why:** Future UI additions (Weekend 3 toasts, auth nav bar) need the spacing reference to stay consistent without reverse-engineering the CSS.
-
-**Where to start:** `event-driven/DESIGN.md` — add `## Spacing & Sizing` section after the Typography section.
-
-**Effort:** XS (human ~15 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 3 (auth PR) complete
+**Effort:** XS | **Priority:** P3 | **Status:** DONE (spacing section added)
 
 ---
 

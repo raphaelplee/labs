@@ -53,6 +53,65 @@ Introduced as CSS custom properties in the Keycloak auth PR. All hardcoded hex v
 
 ---
 
+## Spacing & Sizing
+
+All values derived from `index.html` CSS. No spacing tokens exist yet — these are literals. Any Weekend 3+ additions should follow this scale rather than introducing arbitrary values.
+
+### Spacing Scale
+
+| Value | Used for |
+|---|---|
+| 2px | Button label internal margin (`btn-label margin-bottom`) |
+| 3px | Order context label gap (`order-ctx-label margin-bottom`) |
+| 4px | Spinner left gap; status dot right margin |
+| 6px | Step dot row gap; button bottom margin between siblings |
+| 7px | Hint top margin |
+| 8px | Step header gap; saga time top margin; order context box y-padding |
+| 10px | Order context box x-padding; button y-padding; card header bottom margin; step header bottom margin |
+| 12px | Saga card bottom margin |
+| 14px | Button x-padding; saga card y-padding |
+| 16px | Nav link gap; step group spacing; blurb y-padding; saga panel heading bottom margin; saga card x-padding |
+| 20px | Trigger panel padding |
+| 24px | Nav x-padding; blurb x-padding; saga panel padding |
+| 32px | Empty state vertical padding |
+
+### Component Sizes
+
+| Component | Size | Shape |
+|---|---|---|
+| Status dot (nav) | 8×8px | circle (`border-radius: 50%`) |
+| Step dot (saga card) | 10×10px | circle |
+| Step badge (trigger panel) | 18×18px | circle |
+| Status badge (pill) | auto × 20px+ | `border-radius: 20px` |
+| Button | full-width, 10×14px padding | `border-radius: 6px` |
+| Order context box | full-width, 8×10px padding | `border-radius: 6px` |
+| Saga card | full-width, 14×16px padding | `border-radius: 8px` |
+| Toast | 280px wide | `border-radius: 6px`, 4px left border, 44×44px dismiss touch target |
+| Trigger panel | 320px fixed | left grid column |
+
+### Layout
+
+```
+nav          (~41px tall — 14px padding × 2 + 13px font)
+blurb        (~45px tall — 16px padding × 2 + 13px font, line-height 1.6)
+layout grid  height: calc(100vh - 105px)
+  ├─ trigger-panel   320px wide, 20px padding, scrollable
+  └─ saga-panel      fills remainder, 24px padding, scrollable
+```
+
+The `105px` offset in `calc(100vh - 105px)` accounts for nav + blurb + their borders. Adjust if nav or blurb height changes.
+
+### Animation
+
+```css
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+/* Applied to: .step-dot.RUNNING — 1.5s ease-in-out infinite */
+```
+
+Intent: communicates an in-progress async state without jarring motion. The 50% opacity floor keeps the dot readable. Do not apply to static elements.
+
+---
+
 ## Typography
 
 - **Font stack:** `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` — correct for a developer tool (matches GitHub's dashboard chrome). Not a typography gap — intentional for this category.
@@ -175,7 +234,7 @@ Note: The auth mode is `spring-boot-starter-oauth2-client` with browser session 
 | Keycloak RP-Initiated Logout (end_session endpoint) | Overkill for a demo — `POST /logout` is sufficient |
 | Custom Keycloak login page styling (full theme) | Default Keycloak theme + custom info text is enough |
 | Mobile responsive redesign of main layout | Pre-existing desktop-first design; auth adds only nav truncation fix |
-| DESIGN.md with full design system documentation | Separate TODO (this file covers auth scope only) |
+| DESIGN.md with full design system documentation | Spacing/sizing section added 2026-05-20. Remaining gap: decisions-deferred section (mobile layout, full Keycloak theme, HTMX rewrite) |
 
 ---
 

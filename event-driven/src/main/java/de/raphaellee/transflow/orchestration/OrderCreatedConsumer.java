@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import java.util.Map;
 
 @Component
 class OrderCreatedConsumer {
@@ -35,6 +36,9 @@ class OrderCreatedConsumer {
         var options = WorkflowOptions.newBuilder()
             .setWorkflowId(workflowId)
             .setTaskQueue(taskQueue)
+            // Store orderId in workflow memo so SagaStatusMapper can surface it
+            // without a cross-module DB query. Memo is immutable after workflow start.
+            .setMemo(Map.of("orderId", event.orderId().toString()))
             .build();
 
         var workflow = workflowClient.newWorkflowStub(SubscriptionSagaWorkflow.class, options);

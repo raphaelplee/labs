@@ -3,6 +3,7 @@ package de.raphaellee.transflow.orchestration;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.api.workflow.v1.WorkflowExecutionInfo;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
+import io.temporal.common.converter.DataConverter;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
@@ -36,7 +37,24 @@ class SagaStatusMapper {
             ? Instant.ofEpochSecond(info.getCloseTime().getSeconds(), info.getCloseTime().getNanos())
             : null;
 
-        return new SagaStatus(workflowId, subscriptionId, status, startedAt, closedAt, deriveSteps(status));
+        UUID orderId = extractMemoUUID(info, "orderId");
+        return new SagaStatus(workflowId, subscriptionId, status, orderId, startedAt, closedAt, deriveSteps(status));
+    }
+
+    /**
+     * Extracts a UUID from the workflow memo set at workflow start time.
+     * Returns null for old workflows started before memo was added, or if parsing fails.
+     */
+    private UUID extractMemoUUID(WorkflowExecutionInfo info, String key) {
+        var fields = info.getMemo().getFieldsMap();
+        if (!fields.containsKey(key)) return null;
+        try {
+            String value = DataConverter.getDefaultInstance()
+                .fromPayload(fields.get(key), String.class, String.class);
+            return UUID.fromString(value);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String mapStatus(WorkflowExecutionStatus temporalStatus) {
