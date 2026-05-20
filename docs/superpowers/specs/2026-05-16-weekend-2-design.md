@@ -183,21 +183,25 @@ de.raphaellee.transflow/
 ├── payment/
 │   ├── PaymentController.java               # POST /api/payments/{id}/confirm|fail
 │   ├── PaymentService.java
-│   ├── Payment.java
-│   ├── PaymentProcessedEvent.java          # fields: orderId, subscriptionId, scenario
-│   └── PaymentFailedEvent.java             # fields: orderId, subscriptionId
+│   ├── Payment.java                         # JPA entity — has UUID id (returned in HTTP response, not emitted to Kafka events)
+│   ├── PaymentScenario.java                 # enum: HAPPY_PATH | FULFILLMENT_TIMEOUT
+│   ├── PaymentProcessedEvent.java          # fields: orderId, subscriptionId, scenario (paymentId omitted — consumers correlate via orderId)
+│   └── PaymentFailedEvent.java             # fields: orderId, subscriptionId (paymentId omitted — consumers correlate via orderId)
 └── fulfillment/
     ├── FulfillmentConsumer.java             # @KafkaListener(payment.processed, group=transflow-fulfillment)
-    ├── FulfillmentService.java              # does fulfillment work, saves record
-    ├── FulfillmentRecord.java              # JPA entity
+    ├── FulfillmentService.java              # does fulfillment work, saves record, publishes FulfillmentCompletedEvent
+    ├── FulfillmentRecord.java               # JPA entity
+    ├── FulfillmentCompletedEvent.java       # fields: fulfillmentId, orderId, subscriptionId → externalized to fulfillment.completed
     └── FulfillmentController.java          # GET /api/fulfillments, GET /api/fulfillments/{orderId}
 ```
 
 Spring Modulith externalizes `ApplicationEvent`s to Kafka via the event publication registry (outbox pattern — backed by Postgres `transflow` schema for delivery guarantee).
 
-**ArchUnit rules:**
-- `payment` must not import any class from `order`
-- `fulfillment` must not import any class from `orchestration` or `order` or `payment` directly
+**ArchUnit rules (actual tests in `ArchUnitTest.java`):**
+- `payment` must not access `order.Order` or `order.OrderRepository` (internals); `OrderService` (public API) is allowed
+- `fulfillment` must not access any class in `orchestration`
+- `fulfillment` must not access `order.Order` or `order.OrderRepository` (internals); importing `payment.PaymentProcessedEvent` and `payment.PaymentScenario` is allowed
+- `order` must not access any class in `payment`, `fulfillment`, or `orchestration`
 
 ### Temporal Workflow
 
@@ -226,19 +230,19 @@ Timeout is configurable via environment variable (`SAGA_FULFILLMENT_TIMEOUT_SECO
 // Derives workflowId from subscriptionId — never from the event payload
 String workflowId = "saga-" + event.subscriptionId();
 
-// Scenario routing
-if ("fulfillment-timeout".equals(event.scenario())) {
+// Scenario routing — enum comparison (PaymentScenario serialised on Kafka wire)
+if (PaymentScenario.FULFILLMENT_TIMEOUT == event.scenario()) {
     Thread.sleep(35_000); // sleep past the 30s workflow timer — timeout fires first
 }
 
 // Save fulfillment record + publish fulfillment.completed
 fulfillmentService.complete(event.orderId(), event.subscriptionId());
 
-// Signal the workflow — catch if already closed (timeout race)
+// Signal the workflow using the typed method name — catch if already closed (timeout race)
 try {
-    workflowClient.newUntypedWorkflowStub(workflowId).signal("FULFILLMENT_DONE");
+    workflowClient.newUntypedWorkflowStub(workflowId).signal("fulfillmentDone");
 } catch (WorkflowNotFoundException e) {
-    log.warn("Workflow {} already closed — FULFILLMENT_DONE signal discarded", workflowId);
+    log.warn("Workflow {} already closed — fulfillmentDone signal discarded", workflowId);
 }
 ```
 
@@ -256,9 +260,10 @@ GET  /api/orders/{orderId}
   → 404 if not found
 
 # Payment module
-POST /api/payments/{orderId}/confirm?scenario=happy-path|fulfillment-timeout
+POST /api/payments/{orderId}/confirm?scenario=HAPPY_PATH|FULFILLMENT_TIMEOUT
   → 202 { "paymentId": "uuid", "orderId": "uuid", "status": "PROCESSED" }
   → 404 if orderId not found
+  (Spring MVC converts scenario param case-insensitively via StringToEnumConverterFactory)
 
 POST /api/payments/{orderId}/fail
   → 202 { "paymentId": "uuid", "orderId": "uuid", "status": "FAILED" }
@@ -267,17 +272,18 @@ POST /api/payments/{orderId}/fail
 # Orchestration module
 GET /api/sagas
   → uses Temporal listWorkflowExecutions (Visibility API, single gRPC call)
-  → [ { "sagaId", "subscriptionId", "status", "scenario", "startedAt", "updatedAt", "steps": [...] } ]
+  → [ { "sagaId", "subscriptionId", "status", "startedAt", "closedAt", "steps": [...] } ]
+  (closedAt is null for running workflows; no scenario or orderId in SagaStatus — see SagaStatus.java)
 
 GET /api/sagas/{sagaId}
   → uses Temporal describeWorkflowExecution (history for step detail)
-  → { "sagaId", "subscriptionId", "status", "scenario", "startedAt", "updatedAt",
+  → { "sagaId", "subscriptionId", "status", "startedAt", "closedAt",
       "steps": [
-        { "name": "ORDER_CREATED",           "status": "COMPLETED", "completedAt": "..." },
-        { "name": "AWAITING_PAYMENT",        "status": "COMPLETED", "completedAt": "..." },
-        { "name": "FULFILLMENT_PROCESSING",  "status": "RUNNING",   "completedAt": null }
-      ],
-      "error": null }
+        { "name": "ORDER_CREATED",           "status": "COMPLETED" },
+        { "name": "AWAITING_PAYMENT",        "status": "COMPLETED" },
+        { "name": "FULFILLMENT_PROCESSING",  "status": "RUNNING"   }
+      ] }
+  (SagaStep has name + status only — no completedAt; steps are derived from status, not from Temporal history events)
 
 # Fulfillment module
 GET /api/fulfillments
@@ -366,7 +372,7 @@ These three are tagged `@Tag("unit")` and included in the default Surefire run.
 
 **`transflow-core` integration tests** — Testcontainers: Kafka (KRaft) + Postgres, tagged `@Tag("integration")`:
 - `POST /api/orders` → verify `order.created` published to Kafka
-- `POST /api/payments/{id}/confirm` → verify `payment.processed` published with correct fields (`orderId`, `subscriptionId`, `scenario`)
+- `POST /api/payments/{id}/confirm` → verify `payment.processed` published with correct fields (`orderId`, `subscriptionId`, `scenario`); `paymentId` is in the HTTP response body only
 - `POST /api/payments/{id}/fail` → verify `payment.failed` published
 - `POST /api/orders` duplicate `subscriptionId` → 409
 - `POST /api/payments/{unknownId}/confirm` → 404
