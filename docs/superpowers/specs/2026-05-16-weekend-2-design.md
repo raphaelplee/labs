@@ -301,26 +301,34 @@ Served by `transflow-core` (orchestration module) at `transflow.raphaellee.de`. 
 
 **Architecture blurb** (shown above the trigger panel — always visible):
 
-> A subscription lifecycle saga — order → payment → fulfillment — orchestrated by **Temporal** and triggered via **Kafka** domain events. Built with **Spring Boot 4** + **Spring Modulith** (four enforced module boundaries in one JVM). Each button below triggers a real distributed workflow. Watch it propagate in real time — or follow the full trace in [Temporal UI] and [Kafka UI].
-
-This gives every visitor (technical or not) the hook to understand what they're looking at and which technologies are in use.
+> A subscription lifecycle saga — order → payment → fulfillment — orchestrated by **Temporal** and triggered via **Kafka** domain events. Built with **Spring Boot 4** + **Spring Modulith** (four enforced module boundaries in one JVM). Each button makes a single REST call — step through the saga manually to watch each state transition in real time.
 
 **Layout:**
 
-Nav bar: `transflow` logo · connection status dot (🟢 connected / 🔴 backend unreachable) · links: Temporal UI · Kafka UI · Swagger UI
+Nav bar: `transflow` logo · connection status dot (🟢 connected / 🔴 backend unreachable) · links: Temporal UI (demo / your-demo-password) · Kafka UI (demo / your-demo-password) · Swagger UI · GitHub
 
-Left panel — **Trigger**:
-- "Happy Path" → POST /api/orders → POST /api/payments/{id}/confirm  
-  *Button disables + shows spinner on click; re-enables when new saga card appears*
-- "Payment Failure" → POST /api/orders → POST /api/payments/{id}/fail  
-  *Same button feedback pattern*
-- "Fulfillment Timeout" → POST /api/orders → POST /api/payments/{id}/confirm?scenario=fulfillment-timeout  
-  *Same button feedback pattern*
-- "Test Idempotency" → same POST /api/orders (fixed subscriptionId) twice in rapid succession
+Left panel — **Step-by-step trigger** (one button = one REST call):
 
-**Button click feedback:** On click, each trigger button immediately disables and shows a loading indicator. It re-enables on the next successful poll that returns the new saga card (or after 10 seconds as a safety timeout). This prevents double-submit and gives instant visual confirmation that the request was received.
+- **Step 1 — Create Order** (always enabled)
+  - `POST /api/orders` with a generated `subscriptionId`
+  - On success: step badge turns green ✓, active orderId shown in context box, Step 2 buttons unlock
+- **Step 2 — Choose a payment outcome** (enabled only after Step 1)
+  - 🟢 `POST /api/payments/{orderId}/confirm?scenario=HAPPY_PATH`
+  - 🔴 `POST /api/payments/{orderId}/fail`
+  - 🟠 `POST /api/payments/{orderId}/confirm?scenario=FULFILLMENT_TIMEOUT`
+  - Active orderId displayed in a blue-tinted context box between steps — no guessing which order is being acted on
+  - After any Step 2 action: all payment buttons disable, step badges reset for the next run
+- **Step 3 — Fulfillment** (no button — automatic)
+  - Explanatory text only: fulfillment completes via Kafka after payment confirmed
+- **Idempotency Demo** (standalone group, always enabled)
+  - Fires `POST /api/orders` twice in parallel with the same `subscriptionId`
+  - Hint updates to show "Responses: 201 + 409"
 
-Right panel — **Live Saga List**: each saga as a card with step timeline dots (grey/yellow/green/red) and status badge.
+**Button feedback:** Each button disables and shows a ⏳ spinner on click. Re-enables after the response. Payment buttons stay disabled after use — user must create a new order (Step 1) to run another scenario. Step number badges cycle: pending (grey) → active (blue) → done (green ✓).
+
+**`activeOrder` state:** JS variable `{ orderId, subscriptionId }` is set after Step 1 succeeds and cleared after Step 2 completes. The current saga card gets a blue border (`.saga-card.current`) to visually link the live card to the step flow.
+
+Right panel — **Live Saga List**: each saga as a card with step timeline dots (grey/orange/green/red), status badge, and timestamps.
 
 **Backend status indicator:** The nav bar shows a small connection dot. When `GET /api/sagas` returns successfully → green. When it fails (network error, 5xx, timeout) → red with "Backend unreachable — retrying". This distinguishes "no sagas yet" from "backend is down" — critical for cold-start scenarios where Elasticsearch/Temporal may still be initializing.
 
