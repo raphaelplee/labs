@@ -1,3 +1,15 @@
 spring:
   temporal:
     start-workers: false  # prevent worker startup in unit/module tests; SagaFlowIntegrationTest re-enables via @DynamicPropertySource
+  # This file shadows src/main/resources/application.yml on the test classpath
+  # (same path → no merge), so the schema config must be repeated here.
+  # Without default_schema, Spring Modulith's event_publication entity resolves
+  # unqualified (public) and fails; orders/payment entities hardcode
+  # @Table(schema = transflow) so they were unaffected, masking the gap.
+  jpa:
+    properties:
+      hibernate:
+        default_schema: transflow
+  flyway:
+    schemas: transflow
+    default-schema: transflow
