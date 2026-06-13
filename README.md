@@ -6,7 +6,7 @@ Hands-on modules demonstrating distributed systems, AI-augmented tooling, and cl
 
 | Module | Status | Stack |
 |--------|--------|-------|
-| [event-driven](event-driven/) | stub | Spring Boot 4, Kafka, Temporal, Postgres |
+| [event-driven](event-driven/) | live | Spring Boot 4, Kafka, Temporal, Postgres |
 | [ai-augmented-cicd](ai-augmented-cicd/) | stub | TypeScript, GitHub Actions, Claude |
 | [multicloud](multicloud/) | stub | AWS + Hetzner, Terraform |
 | [observability](observability/) | stub | Grafana, Prometheus, Postgres |
@@ -24,4 +24,5 @@ Java 25 · Spring Boot 4 · Kafka · Temporal · Postgres · Hetzner · AI-augme
 ## Live
 
 - [transflow.raphaellee.de](https://transflow.raphaellee.de) — subscription saga demo
-- [dashboard.raphaellee.de](https://dashboard.raphaellee.de) — CI/CD metrics
+
+The CI/CD metrics dashboard (`dashboard.raphaellee.de`) is not live yet — it ships with the `ai-augmented-cicd` module.
