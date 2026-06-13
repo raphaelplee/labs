@@ -12,6 +12,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.Network;
 import org.testcontainers.kafka.ConfluentKafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
@@ -31,22 +32,38 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Tag("integration")
 class SagaFlowIntegrationTest {
 
+    // Shared network so the Temporal container can reach Postgres by alias.
+    static Network network = Network.newNetwork();
+
     @Container
     @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17.10");
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17.10")
+        .withNetwork(network)
+        .withNetworkAliases("temporal-postgres");
 
     @Container
     @ServiceConnection
     static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer(
         DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
+    // temporalio/auto-setup does not support DB=sqlite (valid: mysql8, postgres12,
+    // postgres12_pgx, cassandra). Mirror production (compose) by backing Temporal
+    // with postgres12 against the shared Postgres container. Visibility uses the
+    // SQL store (no Elasticsearch needed for the test).
     @Container
     @SuppressWarnings("resource")
     static GenericContainer<?> temporal = new GenericContainer<>("temporalio/auto-setup:1.29.6.1")
-        .withEnv("DB", "sqlite")
+        .withNetwork(network)
+        .dependsOn(postgres)
+        .withEnv("DB", "postgres12")
+        .withEnv("DB_PORT", "5432")
+        .withEnv("POSTGRES_USER", "test")
+        .withEnv("POSTGRES_PWD", "test")
+        .withEnv("POSTGRES_SEEDS", "temporal-postgres")
+        .withEnv("BIND_ON_IP", "0.0.0.0")
         .withExposedPorts(7233)
-        .waitingFor(Wait.forLogMessage(".*temporal_server.*started.*", 1)
-            .withStartupTimeout(Duration.ofSeconds(60)));
+        .waitingFor(Wait.forLogMessage(".*Temporal server started.*", 1)
+            .withStartupTimeout(Duration.ofSeconds(120)));
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
