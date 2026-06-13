@@ -155,6 +155,9 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <excludedGroups>integration</excludedGroups>
+          <systemPropertyVariables>
+            <spring.profiles.active>test</spring.profiles.active>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
@@ -165,6 +168,9 @@
           <includes>
             <include>**/*Test.java</include>
           </includes>
+          <systemPropertyVariables>
+            <spring.profiles.active>test</spring.profiles.active>
+          </systemPropertyVariables>
         </configuration>
         <executions>
           <execution>
