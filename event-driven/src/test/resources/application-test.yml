@@ -1,0 +1,10 @@
+# Test-only overrides, layered on top of src/main/resources/application.yml.
+# Previously a test application.yml shadowed main entirely (same classpath path,
+# no merge), silently dropping the Kafka serializers, auto-offset-reset, and
+# schema config — which broke the full saga→fulfillment flow. This profile file
+# does not shadow main; it is activated via spring.profiles.active=test set in
+# the Surefire/Failsafe config, so main config applies and only the override
+# below changes.
+spring:
+  temporal:
+    start-workers: false  # module/unit tests don't run workers; SagaFlowIntegrationTest re-enables via @DynamicPropertySource

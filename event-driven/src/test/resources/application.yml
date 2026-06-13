@@ -1,3 +1,0 @@
-spring:
-  temporal:
-    start-workers: false  # prevent worker startup in unit/module tests; SagaFlowIntegrationTest re-enables via @DynamicPropertySource
