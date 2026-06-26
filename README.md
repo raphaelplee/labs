@@ -7,7 +7,7 @@ Hands-on modules demonstrating distributed systems, AI-augmented tooling, and cl
 | Module | Status | Stack |
 |--------|--------|-------|
 | [event-driven](event-driven/) | live | Spring Boot 4, Kafka, Temporal, Postgres |
-| [ai-augmented-cicd](ai-augmented-cicd/) | stub | TypeScript, GitHub Actions, Claude |
+| [ai-augmented-cicd](ai-augmented-cicd/) | stub | TypeScript, GitHub Actions, Claude, conclave |
 | [multicloud](multicloud/) | stub | AWS + Hetzner, Terraform |
 | [observability](observability/) | stub | Grafana, Prometheus, Postgres |
 | [api-design](api-design/) | stub | TBD |

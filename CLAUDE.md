@@ -1,1 +1,1 @@
-See [AGENTS.md](AGENTS.md) for AI workflow setup and skill routing.
+See [AGENTS.md](AGENTS.md) for development guidance.
