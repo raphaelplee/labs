@@ -35,3 +35,15 @@ transflow.raphaellee.eu {
 dashboard.raphaellee.eu {
   redir https://dashboard.raphaellee.de{uri} permanent
 }
+
+raphaellee.my {
+  redir https://raphaellee.de{uri} permanent
+}
+
+transflow.raphaellee.my {
+  redir https://transflow.raphaellee.de{uri} permanent
+}
+
+dashboard.raphaellee.my {
+  redir https://dashboard.raphaellee.de{uri} permanent
+}
