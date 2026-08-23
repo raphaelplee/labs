@@ -1,22 +1,10 @@
 # TODOS
 
-Deferred items from the /plan-ceo-review session on 2026-05-14.
+Deferred work items. Each says what it is, why it matters, and where to start.
 
 ---
 
-## P2 — Do soon after Weekend 3
-
-### Full DESIGN.md with design system documentation
-
-**Complete (2026-05-20):** Color token system (20 tokens), component table (14 components), spacing/sizing section (spacing scale, component sizes, layout, pulse animation), auth strategy, blurb copy, and typography rationale are all documented. Blurb text corrected (authorization_code flow, not Resource Server).
-
-**What remains:** "Decisions deferred" section — known design debt (mobile layout, full Keycloak theme, HTMX rewrite). Low priority.
-
-**Effort:** XS | **Priority:** P3 | **Status:** DONE (spacing section added)
-
----
-
-## P2 — Do soon after Weekend 5
+## P2
 
 ### Kafka Dead Letter Queue (DLQ) for deserialization failures
 
@@ -42,7 +30,7 @@ spring.kafka.consumer:
 Then add a `DeadLetterPublishingRecoverer` bean and wire it into the `DefaultErrorHandler`
 on the `KafkaListenerContainerFactory`.
 
-**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 2
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** the `event-driven` module (shipped)
 
 ---
 
@@ -59,10 +47,10 @@ on the `KafkaListenerContainerFactory`.
 with a written artifact behind it. "I made this choice because X" is stronger when
 there's a 1-page markdown file in the repo to point to.
 
-**Context:** Deferred from the CEO plan cherry-pick ceremony. Build after the code
-exists so ADRs document proven decisions, not aspirational ones.
+**Context:** Build after the code exists, so the ADRs document proven decisions rather
+than aspirational ones.
 
-**Effort:** S (human ~2-3 hrs / CC ~20 min) | **Priority:** P2 | **Depends on:** Weekend 5 complete
+**Effort:** S (human ~2-3 hrs / CC ~20 min) | **Priority:** P2 | **Depends on:** the modules whose decisions it would record
 
 ---
 
@@ -78,10 +66,10 @@ exists so ADRs document proven decisions, not aspirational ones.
 
 **Why:** Visual credibility signals in 3 seconds before a reviewer reads a line of code.
 
-**Context:** Deferred from cherry-pick ceremony. Requires both the CI pipeline
-(Weekend 4) and the Grafana metrics endpoint (Weekend 5) to be live.
+**Context:** Requires both the CI pipeline
+and the Grafana metrics endpoint to be live.
 
-**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P3 | **Depends on:** the CI pipeline and the Grafana metrics endpoint being live
 
 ---
 
@@ -92,17 +80,17 @@ exists so ADRs document proven decisions, not aspirational ones.
 - Notifies (email or webhook) when the pr_metrics SSH tunnel has been failing
 
 **Why:** Prevents discovering the metrics system is broken during interview prep.
-The `collection_status` column (added in Weekend 5) tracks whether each write
+The `collection_status` column tracks whether each write
 attempt succeeded, but without an alert you'd only notice failures when reviewing
 the chart and seeing unexplained gaps.
 
-**Context:** Added from /plan-eng-review. Classic "observe the observer" pattern.
+**Context:** Classic "observe the observer" pattern.
 Trivial alongside the Grafana dashboard build.
 
 **Where to start:** Grafana alert rule in the cicd dashboard JSON (one rule, one
 notification channel). Requires `collection_status` column to exist in pr_metrics.
 
-**Effort:** S (human ~15 min / CC ~2 min) | **Priority:** P3 | **Depends on:** Weekend 5 (Grafana dashboard + collection_status column)
+**Effort:** S (human ~15 min / CC ~2 min) | **Priority:** P3 | **Depends on:** the Grafana dashboard + the `collection_status` column
 
 ---
 
@@ -117,13 +105,13 @@ notification channel). Requires `collection_status` column to exist in pr_metric
 managers in the interview loop). The core audience (engineers) is fine with curl, but
 a live visual makes the "here's my saga working" moment stronger.
 
-**Context:** Deferred from Section 11 review. API-only is correct for Weekends 1-5.
-HTMX is a 1-weekend addition after the core is solid.
+**Context:** API-only was the right call while the saga was being built. HTMX is a
+self-contained addition now that the core is solid.
 
 **Where to start:** `event-driven/src/main/resources/templates/` — add Thymeleaf +
 HTMX dependency; Server-Sent Events endpoint at `/events/stream`.
 
-**Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+**Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** nothing — the saga API it would render is live
 
 ---
 
@@ -133,10 +121,10 @@ HTMX dependency; Server-Sent Events endpoint at `/events/stream`.
 - Intentionally exposed: 80 (Caddy HTTP), 443 (Caddy HTTPS)
 - Never expose: 5432 (Postgres), 9092 (Kafka), 7233 (Temporal server), 8080 (Spring Boot app — internal only)
 
-**Why:** Docker bypasses UFW on Linux — any `ports:` mapping in the compose file is immediately internet-accessible. Without a policy comment, Weekend 2+ additions of Kafka and Temporal may accidentally expose management APIs to the public internet.
+**Why:** Docker bypasses UFW on Linux — any `ports:` mapping in the compose file is immediately internet-accessible. Without a policy comment, a future service addition may accidentally expose a management API to the public internet.
 
-**Context:** Identified during Weekend 1 eng review. The CX33 server runs Docker with UFW enabled; UFW protects host-level SSH but does not protect Docker-mapped ports. The compose file must be the source of truth for what is and isn't exposed.
+**Context:** The server runs Docker with UFW enabled; UFW protects host-level SSH but does not protect Docker-mapped ports. The compose file must be the source of truth for what is and isn't exposed. The full port policy is recorded in the provisioning runbook in `labs-private`.
 
 **Where to start:** `compose/docker-compose.yml` — add a comment block at the top, before the `services:` key.
 
-**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** Weekend 1 complete
+**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** nothing

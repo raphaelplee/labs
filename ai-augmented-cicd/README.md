@@ -36,4 +36,3 @@ GitHub Copilot CLI integration — no stable public API as of this build.
 
 - [conclave](https://github.com/raphaelplee/conclave) — the development workflow under measurement
 - [Anthropic API documentation](https://docs.anthropic.com)
-- [Rework spec](docs/2026-06-26-conclave-rework.md)

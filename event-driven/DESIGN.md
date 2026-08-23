@@ -1,7 +1,7 @@
 # DESIGN.md — Transflow Dashboard
 
 Design decisions for the `event-driven` dashboard (`src/main/resources/static/index.html`).
-Captured during `/plan-design-review` on 2026-05-18. Covers the Keycloak OAuth2 auth PR (Weekend 3).
+Captured during `/plan-design-review` on 2026-05-18; kept in step with the shipped page.
 
 ---
 
@@ -14,7 +14,7 @@ Guiding principle: calm surface hierarchy, dense but readable, utility language,
 
 ## Color Token System
 
-Introduced as CSS custom properties in the Keycloak auth PR. All hardcoded hex values replaced with these variables.
+Every colour in the page is a CSS custom property. No hardcoded hex remains.
 
 ```css
 :root {
@@ -55,7 +55,7 @@ Introduced as CSS custom properties in the Keycloak auth PR. All hardcoded hex v
 
 ## Spacing & Sizing
 
-All values derived from `index.html` CSS. No spacing tokens exist yet — these are literals. Any Weekend 3+ additions should follow this scale rather than introducing arbitrary values.
+All values derived from `index.html` CSS. No spacing tokens exist yet — these are literals. Any additions should follow this scale rather than introducing arbitrary values.
 
 ### Spacing Scale
 
@@ -86,7 +86,6 @@ All values derived from `index.html` CSS. No spacing tokens exist yet — these 
 | Button | full-width, 10×14px padding | `border-radius: 6px` |
 | Order context box | full-width, 8×10px padding | `border-radius: 6px` |
 | Saga card | full-width, 14×16px padding | `border-radius: 8px` |
-| Toast | 280px wide | `border-radius: 6px`, 4px left border, 44×44px dismiss touch target |
 | Trigger panel | 320px fixed | left grid column |
 
 ### Layout
@@ -120,89 +119,6 @@ Intent: communicates an in-progress async state without jarring motion. The 50% 
 
 ---
 
-## Authentication (Keycloak OAuth2 — Weekend 3)
-
-### Auth Strategy
-
-**Mode:** `spring-boot-starter-oauth2-client` with `authorization_code` flow (session-based).
-NOT a bearer-token Resource Server. The browser session cookie handles auth automatically.
-No changes to existing `fetch()` calls in the dashboard JavaScript.
-
-### Entry Point (Unauthenticated)
-
-Spring Security auto-redirects to Keycloak on first visit. No custom login UI in `index.html`. The dashboard only renders for authenticated sessions.
-
-**Keycloak login page:** Add a custom info block with demo credentials (configured via Keycloak admin console or realm theme). Reviewers who land on the login page must see credentials immediately.
-
-### Authenticated Nav Bar (right side)
-
-```
-[transflow]  ● Temporal UI   Kafka UI   Swagger UI  |  raphael.lee   Sign out
-```
-
-- Username: `preferred_username` claim from JWT, fetched via `GET /api/me` on page load.
-- Text color: `var(--text-muted)` (#8b949e).
-- "Sign out" link: `var(--accent-blue)`, turns `var(--accent-red)` on hover (destructive signal).
-- Font: 13px, same as existing nav links.
-- Mobile (< 600px): hide username text, keep "Sign out" link only.
-
-### GET /api/me Endpoint
-
-New Spring MVC controller:
-```
-GET /api/me
-Response: { "username": "raphael.lee" }
-Source: principal.getClaim("preferred_username")
-```
-
-Fetched once on page load via JavaScript. Inserts username into `#nav-username` span.
-
-### CSRF Protection
-
-`CookieCsrfTokenRepository.withHttpOnlyFalse()` — Spring writes `XSRF-TOKEN` cookie.
-
-JavaScript CSRF helper (add to `index.html`):
-```javascript
-function getCsrfToken() {
-  return document.cookie.split('; ')
-    .find(r => r.startsWith('XSRF-TOKEN='))
-    ?.split('=')[1];
-}
-```
-
-All POST `fetch()` calls add `'X-XSRF-TOKEN': getCsrfToken()` header.
-
-### 401 Mid-Session Handler
-
-When any API call returns 401 (token expired mid-session):
-- Show an inline dismissible banner at the top of the page.
-- Styling: `var(--accent-red)` border, same token as error badges.
-- Content: `Session expired — <a href="/oauth2/authorization/keycloak">Sign in again</a>`
-- ARIA: `role="alert" aria-live="assertive"` — screen readers announce immediately.
-- No `alert()` dialog. The existing alert-based error handling is replaced for 401s.
-
-### Sign Out
-
-`POST /logout` (Spring Security's default logout endpoint) → redirect to `/` → Spring Security
-detects unauthenticated → redirect to Keycloak login page.
-
-No custom "signed out" confirmation page.
-
-### Admin Links (Temporal UI, Kafka UI, Swagger UI)
-
-No change to nav links. They open in new tabs as before.
-- Swagger UI: covered by Spring Security (Keycloak session).
-- Temporal UI / Kafka UI: separate Caddy `basic_auth` (see `compose/Caddyfile`).
-
-### Blurb Update
-
-Add one sentence to the blurb:
-> "Secured with **Keycloak** OAuth2 (authorization_code flow) — all endpoints require a valid session."
-
-Note: The auth mode is `spring-boot-starter-oauth2-client` with browser session cookies — NOT an OAuth2 Resource Server (which would accept bearer tokens from external clients). These are different Spring Security patterns.
-
----
-
 ## Existing Component Patterns
 
 | Component         | Pattern                                              | Token                                      |
@@ -220,28 +136,28 @@ Note: The auth mode is `spring-boot-starter-oauth2-client` with browser session 
 | Payment button (orange) | Full-width, orange border on hover          | `var(--accent-orange)` on hover            |
 | Saga card (active) | Blue border highlight for the in-flight saga         | `var(--interactive-blue)` border           |
 | Hint text         | 11px helper text below step groups, line-height 1.5  | `var(--text-dim)`                          |
-| Toast             | 280px fixed, bottom-right viewport, 4px left border, dismiss X (44px touch target, aria-label="Dismiss notification"), role="status" | Accent color per event type |
-| 401 banner        | Full-width between nav and panels, red border, dismissible, role="alert" aria-live="assertive" | `var(--accent-red)` border |
 
 **Rule:** New UI elements must use an existing pattern or add a new row to this table.
 
 ---
 
-## NOT In Scope (This PR)
+## Reusable Helpers
 
-| Decision | Rationale |
-|---|---|
-| Keycloak RP-Initiated Logout (end_session endpoint) | Overkill for a demo — `POST /logout` is sufficient |
-| Custom Keycloak login page styling (full theme) | Default Keycloak theme + custom info text is enough |
-| Mobile responsive redesign of main layout | Pre-existing desktop-first design; auth adds only nav truncation fix |
-| DESIGN.md with full design system documentation | Spacing/sizing section added 2026-05-20. Remaining gap: decisions-deferred section (mobile layout, full Keycloak theme, HTMX rewrite) |
+Existing JavaScript in `index.html` that new UI should build on rather than duplicate:
+
+- `pollSagas()` / `renderSagas()` — poll `/api/sagas` and repaint the saga list; on failure
+  `pollSagas()` flips the nav status dot red.
+- `setBtnLoading(btn, on)` — button loading state; reusable for any button.
+- `setPaymentButtonsDisabled(disabled, exceptId)` — mutual exclusion across the payment buttons.
+- `setStep(n, state)` — drives a step badge through pending / active / done.
+- `setHint(id, text, type)` — writes the helper line under a step group.
 
 ---
 
-## What Already Exists
+## Known Design Debt
 
-- `index.html` color system: all values now in CSS custom properties (see Token System above).
-- GitHub-dark theme: established and consistent throughout.
-- `pollSagas()` error handling: red status dot in nav (pre-existing).
-- `setLoading()` helper: reusable for any button state (pre-existing).
-- `waitForNewSaga()` polling helper: reusable (pre-existing).
+| Gap | Note |
+|---|---|
+| Mobile layout | Desktop-first by design. No responsive redesign of the main two-panel layout. |
+| Authentication | The demo is unauthenticated. A Keycloak OAuth2 session was designed and not built; the admin UIs behind `temporal.` and `kafka.` rely on Caddy `basic_auth` instead. |
+| HTMX rewrite | The page is hand-rolled JS against the REST API. See `TODOS.md`. |

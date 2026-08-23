@@ -10,10 +10,6 @@ Hands-on modules demonstrating distributed systems, AI-augmented tooling, and cl
 | [ai-augmented-cicd](ai-augmented-cicd/) | stub | TypeScript, GitHub Actions, Claude, conclave |
 | [multicloud](multicloud/) | stub | AWS + Hetzner, Terraform |
 | [observability](observability/) | stub | Grafana, Prometheus, Postgres |
-| [api-design](api-design/) | stub | TBD |
-| [platform-engineering](platform-engineering/) | stub | TBD |
-| [iot](iot/) | stub | TBD |
-| [migration-patterns](migration-patterns/) | stub | TBD |
 
 Status values: `stub → in-progress → live`
 

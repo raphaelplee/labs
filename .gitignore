@@ -9,5 +9,4 @@ compose/.env
 # OS
 .DS_Store
 Thumbs.db
-.gstack/
 .claude/
