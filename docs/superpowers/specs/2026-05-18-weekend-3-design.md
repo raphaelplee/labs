@@ -2,7 +2,18 @@
 
 **Date:** 2026-05-18
 **Revised:** 2026-05-19 (post eng review), 2026-05-20 (Weekend 2 learnings applied)
-**Status:** Approved
+**Status:** Approved but NOT IMPLEMENTED — nothing in this spec has been built.
+
+> **Verified against the repo on 2026-08-24:** no `spring-boot-starter-oauth2-client`
+> dependency, no `keycloak` service in `compose/docker-compose.yml`, no `auth.` host in
+> `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner markup in
+> `index.html`. `transflow.raphaellee.de` is public and unauthenticated; the Temporal
+> and Kafka UIs remain behind Caddy `basic_auth`, and the demo credentials for those
+> are shown in the dashboard nav (`23c2081`).
+>
+> This document stays as the design of record in case auth is picked up. It describes
+> nothing that exists. `event-driven/DESIGN.md` carries the same design under
+> *Deferred Design*, next to the design system that is live.
 
 > **Amendments from Weekend 2 execution (2026-05-20):**
 > 1. **Keycloak JVM heap cap added** — `JAVA_OPTS_APPEND: "-Xms128m -Xmx600m"` required. `mem_limit` is a cgroup hard limit but JVM ergonomics size the heap from host RAM by default. kafka-ui hit this exact bug at `mem_limit: 256m` with no `-Xmx` and OOM-restarted on first page visit.

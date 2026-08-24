@@ -1,22 +1,13 @@
 # TODOS
 
-Deferred items from the /plan-ceo-review session on 2026-05-14.
+Deferred items from the `/plan-ceo-review` session on 2026-05-14.
+Each item re-verified against the code, `compose/`, and the GitHub Actions
+workflows on 2026-08-24 — dependencies below reflect what is actually live, not
+the state assumed when the item was written.
 
 ---
 
-## P2 — Do soon after Weekend 3
-
-### Full DESIGN.md with design system documentation
-
-**Complete (2026-05-20):** Color token system (20 tokens), component table (14 components), spacing/sizing section (spacing scale, component sizes, layout, pulse animation), auth strategy, blurb copy, and typography rationale are all documented. Blurb text corrected (authorization_code flow, not Resource Server).
-
-**What remains:** "Decisions deferred" section — known design debt (mobile layout, full Keycloak theme, HTMX rewrite). Low priority.
-
-**Effort:** XS | **Priority:** P3 | **Status:** DONE (spacing section added)
-
----
-
-## P2 — Do soon after Weekend 5
+## P2
 
 ### Kafka Dead Letter Queue (DLQ) for deserialization failures
 
@@ -30,19 +21,27 @@ mismatch caused the consumer to loop on the same poisoned offset until topics we
 manually wiped. DLQ is standard Kafka production practice; its absence is an obvious
 omission for any senior engineer reviewing the module.
 
-**Where to start:** `application.yml` consumer config — wrap `JsonDeserializer` with
-Spring Kafka's `ErrorHandlingDeserializer` (delegates to `JsonDeserializer`, routes
-failures to DLQ instead of crashing the container):
-```yaml
-spring.kafka.consumer:
-  value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-  properties:
-    spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
-```
-Then add a `DeadLetterPublishingRecoverer` bean and wire it into the `DefaultErrorHandler`
-on the `KafkaListenerContainerFactory`.
+**Where to start:** the consumer currently uses `ByteArrayDeserializer` (`application.yml`)
+with a `ByteArrayJacksonJsonMessageConverter` `@Bean` (`KafkaConfig`), so the Kafka-client
+layer never fails — bad payloads blow up in the Spring conversion layer instead. The fix
+therefore belongs in the error handler, not the deserializer:
 
-**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** Weekend 2
+```java
+// KafkaConfig — DeadLetterPublishingRecoverer routes failed records to <topic>.dlq
+@Bean
+DefaultErrorHandler kafkaErrorHandler(KafkaOperations<Object, Object> template) {
+    return new DefaultErrorHandler(
+        new DeadLetterPublishingRecoverer(template,
+            (record, ex) -> new TopicPartition(record.topic() + ".dlq", record.partition())),
+        new FixedBackOff(1000L, 2));
+}
+```
+
+Spring Boot 4 wires a single `CommonErrorHandler` bean into the auto-configured listener
+factory. The four `*.dlq` topics need adding to the `kafka-init` service in
+`compose/docker-compose.yml` (`AUTO_CREATE_TOPICS_ENABLE` is `false`).
+
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P2 | **Depends on:** nothing — ready now
 
 ---
 
@@ -60,9 +59,13 @@ with a written artifact behind it. "I made this choice because X" is stronger wh
 there's a 1-page markdown file in the repo to point to.
 
 **Context:** Deferred from the CEO plan cherry-pick ceremony. Build after the code
-exists so ADRs document proven decisions, not aspirational ones.
+exists so ADRs document proven decisions, not aspirational ones. The first three
+decisions are already shipped and provable in `event-driven/`; 0004 and 0005 remain
+aspirational until `multicloud` and `ai-augmented-cicd` are built. Follow the format
+already used by the `decisions/` directory in the private notes repo (numbered,
+Context / Decision / Why / Consequences).
 
-**Effort:** S (human ~2-3 hrs / CC ~20 min) | **Priority:** P2 | **Depends on:** Weekend 5 complete
+**Effort:** S (human ~2-3 hrs / CC ~20 min) | **Priority:** P2 | **Depends on:** nothing for 0001-0003
 
 ---
 
@@ -78,65 +81,77 @@ exists so ADRs document proven decisions, not aspirational ones.
 
 **Why:** Visual credibility signals in 3 seconds before a reviewer reads a line of code.
 
-**Context:** Deferred from cherry-pick ceremony. Requires both the CI pipeline
-(Weekend 4) and the Grafana metrics endpoint (Weekend 5) to be live.
+**Context:** Deferred from cherry-pick ceremony. Badge 1 is unblocked — the `CI` and
+`Integration Tests` workflows are both live and green on `main`, and GitHub already
+publishes a badge URL for each. Badge 2 needs the JaCoCo plugin, which is not in either
+`pom.xml` yet. Badge 3 still needs the metrics endpoint from `ai-augmented-cicd`.
 
-**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+**Effort:** S (human ~30 min / CC ~5 min) | **Priority:** P3 | **Depends on:** badge 1 ready now; badge 2 on JaCoCo; badge 3 on the metrics endpoint
 
 ---
 
 ### Grafana collection health alert
 
-**What:** Add one Grafana alert rule to the `cicd.raphaellee.de` dashboard:
+**What:** Add one Grafana alert rule to the `dashboard.raphaellee.de` dashboard:
 - Trigger: `count(collection_status = 'failed') over last 2 hours > 1`
 - Notifies (email or webhook) when the pr_metrics SSH tunnel has been failing
 
 **Why:** Prevents discovering the metrics system is broken during interview prep.
-The `collection_status` column (added in Weekend 5) tracks whether each write
-attempt succeeded, but without an alert you'd only notice failures when reviewing
-the chart and seeing unexplained gaps.
+The `collection_status` column tracks whether each write attempt succeeded, but
+without an alert you'd only notice failures when reviewing the chart and seeing
+unexplained gaps.
 
-**Context:** Added from /plan-eng-review. Classic "observe the observer" pattern.
+**Context:** Added from `/plan-eng-review`. Classic "observe the observer" pattern.
 Trivial alongside the Grafana dashboard build.
 
-**Where to start:** Grafana alert rule in the cicd dashboard JSON (one rule, one
-notification channel). Requires `collection_status` column to exist in pr_metrics.
+**Where to start:** Grafana alert rule in the dashboard JSON (one rule, one
+notification channel). Requires the `collection_status` column to exist in `pr_metrics`.
 
-**Effort:** S (human ~15 min / CC ~2 min) | **Priority:** P3 | **Depends on:** Weekend 5 (Grafana dashboard + collection_status column)
-
----
-
-### HTMX frontend for event-driven (stretch)
-
-**What:** A minimal HTMX frontend at `event-driven.raphaellee.de`:
-- Subscription status page: list active subscriptions
-- Payment event feed: real-time saga state updates via Server-Sent Events
-- Shows the saga state machine executing visually
-
-**Why:** Makes the demo visually real for non-technical stakeholders (CTOs, product
-managers in the interview loop). The core audience (engineers) is fine with curl, but
-a live visual makes the "here's my saga working" moment stronger.
-
-**Context:** Deferred from Section 11 review. API-only is correct for Weekends 1-5.
-HTMX is a 1-weekend addition after the core is solid.
-
-**Where to start:** `event-driven/src/main/resources/templates/` — add Thymeleaf +
-HTMX dependency; Server-Sent Events endpoint at `/events/stream`.
-
-**Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** Weekend 5 complete
+**Effort:** S (human ~15 min / CC ~2 min) | **Priority:** P3 | **Depends on:** the Grafana dashboard + `pr_metrics` schema, neither of which exists yet — `dashboard.raphaellee.de` currently serves a Caddy "coming soon" response
 
 ---
 
-### Docker port exposure policy comment
+### Server-Sent Events for the saga dashboard (stretch)
 
-**What:** Add a comment block at the top of `compose/docker-compose.yml` documenting which ports are intentionally mapped vs which must never be mapped:
-- Intentionally exposed: 80 (Caddy HTTP), 443 (Caddy HTTPS)
-- Never expose: 5432 (Postgres), 9092 (Kafka), 7233 (Temporal server), 8080 (Spring Boot app — internal only)
+**What:** Replace the dashboard's 2-second `/api/sagas` poll with a push stream:
+- SSE endpoint at `/events/stream` in the `orchestration` module
+- `index.html` subscribes and re-renders on each saga state transition
 
-**Why:** Docker bypasses UFW on Linux — any `ports:` mapping in the compose file is immediately internet-accessible. Without a policy comment, Weekend 2+ additions of Kafka and Temporal may accidentally expose management APIs to the public internet.
+**Why:** The saga state machine currently animates on a poll tick, so transitions can
+lag by up to 2s and every idle browser tab keeps hitting the API. A push stream makes
+the state machine visibly react the instant the workflow signals, which is the moment
+the demo is selling.
 
-**Context:** Identified during Weekend 1 eng review. The CX33 server runs Docker with UFW enabled; UFW protects host-level SSH but does not protect Docker-mapped ports. The compose file must be the source of truth for what is and isn't exposed.
+**Context:** Deferred from Section 11 review, where it was framed as "add a frontend" —
+that half already shipped: `event-driven/src/main/resources/static/index.html` serves a
+step-by-step saga dashboard at `transflow.raphaellee.de`. What remains is the transport.
+HTMX is optional; `EventSource` plus the existing `renderSagas()` is enough.
 
-**Where to start:** `compose/docker-compose.yml` — add a comment block at the top, before the `services:` key.
+**Where to start:** an `SseEmitter` (or `Flux<ServerSentEvent>`) endpoint fed from the
+same query path `SagaController` already uses; keep the poll as the fallback for
+browsers that drop the connection.
 
-**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** Weekend 1 complete
+**Effort:** M (human ~1 weekend / CC ~2 hrs) | **Priority:** P3 | **Depends on:** nothing — ready now
+
+---
+
+### Docker port exposure policy
+
+**What:** Document which ports are intentionally published from `compose/docker-compose.yml`
+and which must never be, in `event-driven/README.md` under Ops Notes:
+- Intentionally published: 80 (Caddy HTTP), 443 + 443/udp (Caddy HTTPS)
+- Never published: 5432 (Postgres), 9092/9093 (Kafka), 7233 (Temporal server), 8233
+  (Temporal UI), 8090 (Kafka UI), 9200 (Elasticsearch), 8080 (Spring Boot app — reached
+  through Caddy only)
+
+**Why:** Docker bypasses UFW on Linux — any `ports:` mapping in the compose file is
+immediately internet-accessible. Without a written policy, a future service addition may
+accidentally expose a management API to the public internet.
+
+**Context:** Identified during the Weekend 1 eng review. The server runs Docker with UFW
+enabled; UFW protects host-level SSH but does not protect Docker-published ports. The
+current compose file is already correct — `caddy` is the only service with a `ports:`
+block, everything else is reachable only on the compose network — so this is about
+recording the rule, not changing behaviour.
+
+**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** nothing — ready now
