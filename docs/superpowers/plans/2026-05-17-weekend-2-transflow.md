@@ -18,7 +18,10 @@ What diverged from the plan, and bugs found post-implementation:
 
 ---
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Historical record, not current documentation.** Kept as-written; where it
+> disagrees with the repo, the repo wins — `event-driven/README.md` is the current
+> description of the shipped module. Steps use checkbox (`- [ ]`) syntax; they were
+> tracked during execution.
 
 **Goal:** Build a subscription lifecycle saga (order â†’ payment â†’ fulfillment) using Temporal, Kafka, and Spring Modulith â€” publicly accessible at transflow.raphaellee.de with a live HTML status page showing real-time saga progress.
 

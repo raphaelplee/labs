@@ -1,8 +1,9 @@
 # Weekend 2 Design — Event-Driven Saga with Temporal + Kafka
 
 **Date:** 2026-05-16  
-**Revised:** 2026-05-17 (post eng review)  
-**Status:** Approved  
+**Revised:** 2026-05-17 (post eng review), 2026-05-20 (corrected against shipped code)  
+**Status:** Shipped — historical record. `event-driven/README.md` and `DESIGN.md` are
+the current documentation for this module; where they disagree with this spec, they win.  
 **Module:** `event-driven`  
 **Live demo:** `transflow.raphaellee.de`
 

@@ -1,8 +1,12 @@
 # ai-augmented-cicd
 
+**Status: stub — nothing in this module is built yet.** The design below is the
+plan of record; see *State* for what exists today.
+
 End-to-end AI-augmented delivery: [`conclave`](https://github.com/raphaelplee/conclave)
-drives the development workflow, and this module reviews and measures its output
-in CI. The PR metrics dashboard is the evidence behind the 3x productivity claim.
+drives the development workflow, and this module is to review and measure its output
+in CI. The PR metrics dashboard is intended as the evidence behind the 3x productivity
+claim.
 
 ## Two Layers, One Pipeline
 
@@ -12,11 +16,21 @@ in CI. The PR metrics dashboard is the evidence behind the 3x productivity claim
 ```
 
 - **Development — conclave (referenced, not vendored).** The `/executor`
-  protocol, bound by its Codex, is the AI-augmented dev workflow. This module
+  protocol, bound by its TAO, is the AI-augmented dev workflow. This module
   references conclave as the source of truth rather than re-implementing it.
-- **Delivery & measurement — this module.** AI code review runs in CI; PR
-  metrics (cycle time, review findings, acceptance rate) feed a Grafana
+- **Delivery & measurement — this module.** AI code review in CI; PR
+  metrics (cycle time, review findings, acceptance rate) feeding a Grafana
   dashboard that quantifies the workflow's throughput and quality.
+
+## State
+
+| Piece | Today |
+|---|---|
+| conclave `/executor` workflow | Live, in its own repo — the PRs in this repo are produced with it |
+| AI code review in CI | Not built. `.github/workflows/` holds `ci.yml` (build → publish → deploy), `integration-tests.yml`, and Dependabot — no review job |
+| PR metrics collection | Not built. No `pr_metrics` schema, no collector |
+| Grafana dashboard | Not built. `dashboard.raphaellee.de` serves a Caddy "coming soon" response |
+| 3x measurement write-up | Not written. The methodology reasoning lives in the private notes repo, not here |
 
 ## Architectural Decision
 

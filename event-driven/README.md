@@ -119,6 +119,24 @@ threads, and NIO buffers.
 | elasticsearch | 1g | `-Xms256m -Xmx768m` |
 | kafka-ui | 400m | `-Xms64m -Xmx320m` |
 
+### Concurrent deploys race on the server
+
+The `deploy` job in `.github/workflows/ci.yml` has no `concurrency` group, so two merges
+to `main` in quick succession run `docker compose up -d` on the server at the same time.
+Observed on 2026-06-13 ([run 27467218920](https://github.com/raphaelplee/labs/actions/runs/27467218920)),
+when three Dependabot PRs merged within ten seconds: one deploy recreated `transflow-core`
+while another was mid-recreate, and the second failed with
+
+```
+Container badc0508b040_compose-transflow-core-1 Started
+Container compose-transflow-core-1 Starting
+Error response from daemon: No such container: badc0508b040...
+```
+
+The stack was left healthy — the first deploy had already started the new container — and
+the next merge deployed cleanly. So this is a red CI run, not an outage. Fix is one key on
+the job (see [TODOS.md](../TODOS.md)); until then, avoid merging two PRs to `main` at once.
+
 ### Kafka topic poison messages
 
 If a consumer loops on the same offset with deserialization errors, the topic has a poisoned

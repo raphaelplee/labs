@@ -1,7 +1,8 @@
 # ai-augmented-cicd Rework — Conclave as the Development Engine
 
 **Date:** 2026-06-26
-**Status:** Draft (envision stage)
+**Status:** Shipped in `df39c9d` (PR #18) — the narrative rework below is done; the
+module itself is still a stub, exactly as this spec's *NOT in Scope* intended.
 **Module:** `ai-augmented-cicd`
 
 ---
@@ -41,7 +42,7 @@ with a written artifact and live data behind it.
  │                              │      │                                  │
  │  /executor protocol:         │ PR   │  CI AI review                    │
  │  spec → plan → review → code │ ───► │  (Claude in CI / Ollama local)   │
- │  bound by the Codex          │      │  + PR metrics → Grafana dashboard│
+ │  bound by the TAO            │      │  + PR metrics → Grafana dashboard│
  └─────────────────────────────┘      └──────────────────────────────────┘
             the workflow                     the proof it works
 ```
@@ -64,9 +65,10 @@ with a written artifact and live data behind it.
   one review function with a swappable backend. Local devs get instant offline
   feedback; CI gets higher-quality analysis.
 - **Copilot CLI still out of scope** — no stable public API as of this build.
-- **3x methodology doc** (`docs/three-x-methodology.md`) remains the honest
-  measurement write-up. It now attributes the development workflow to conclave
-  explicitly and keeps the "directional, not laboratory-controlled" caveat.
+- **3x methodology write-up** stays deferred (see Open Questions). No such file has
+  been written in this repo; the measurement reasoning currently lives in the private
+  notes repo. When it is written here it must attribute the development workflow to
+  conclave explicitly and keep the "directional, not laboratory-controlled" caveat.
 
 ---
 
@@ -98,8 +100,8 @@ with a written artifact and live data behind it.
    produced via `/executor`), or all PRs regardless of origin? The 3x baseline
    in the design docs is "all PRs before vs after" — keep that, but note the
    workflow behind "after" is conclave.
-2. Should `three-x-methodology.md` be authored now (narrative) or stay deferred
-   until Weekend 5 data exists? Current plan: keep deferred; this spec only
+2. Should a `three-x-methodology.md` be authored now (narrative) or stay deferred
+   until real metrics data exists? Current plan: keep deferred; this spec only
    sets the framing it must follow.
 
 ---
@@ -108,7 +110,7 @@ with a written artifact and live data behind it.
 
 - The module README presents one pipeline: conclave (dev) → CI review + metrics
   (delivery/proof), with conclave linked.
-- No duplication of the executor/Codex content from conclave — only a reference.
+- No duplication of the executor/TAO content from conclave — only a reference.
 - The backend-swap decision and Copilot-CLI exclusion are preserved verbatim in
   intent.
 - Root README reflects conclave in the module's stack.

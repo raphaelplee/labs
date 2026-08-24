@@ -1,7 +1,11 @@
 # DESIGN.md — Transflow Dashboard
 
-Design decisions for the `event-driven` dashboard (`src/main/resources/static/index.html`).
-Captured during `/plan-design-review` on 2026-05-18. Covers the Keycloak OAuth2 auth PR (Weekend 3).
+Design system of record for the `event-driven` dashboard (`src/main/resources/static/index.html`).
+Started during `/plan-design-review` on 2026-05-18, alongside the Weekend 3 Keycloak auth spec.
+
+**Verified against `index.html` on 2026-08-24.** Sections up to and including
+*What Already Exists* describe the page as it ships. The Keycloak auth design was
+never implemented and is kept, clearly marked, under *Deferred Design* at the end.
 
 ---
 
@@ -14,7 +18,7 @@ Guiding principle: calm surface hierarchy, dense but readable, utility language,
 
 ## Color Token System
 
-Introduced as CSS custom properties in the Keycloak auth PR. All hardcoded hex values replaced with these variables.
+Introduced as CSS custom properties during the step-by-step UI redesign (`54d000f`). All hardcoded hex values replaced with these variables.
 
 ```css
 :root {
@@ -45,17 +49,27 @@ Introduced as CSS custom properties in the Keycloak auth PR. All hardcoded hex v
   --interactive-blue-edge: #1f6feb44; /* order-ctx box border */
 
   /* State — completed/done (distinct from --accent-green status indicator) */
-  --state-done-green: #2ea043; /* Done step badge background */
+  --state-done-green:    #2ea043; /* Done step badge background */
+  --state-done-green-bg: #2ea04322; /* COMPLETED badge background */
+
+  /* Badge tints — saga status pills */
+  --badge-await-bg:   #1f6feb22; /* AWAITING_PAYMENT background */
+  --badge-fulfill-bg: #9a6700aa; /* FULFILLMENT_PROCESSING background */
+  --badge-fulfill-bdr:#9a6700;   /* FULFILLMENT_PROCESSING border */
+  --badge-error-bg:   #da363322; /* PAYMENT_FAILED / TIMED_OUT background */
+  --badge-error-bdr:  #da3633;   /* PAYMENT_FAILED / TIMED_OUT border */
 }
 ```
 
 **Rule:** No new color values may be introduced without adding them here first. Hardcoded hex is blocked. Alpha variants of existing tokens (e.g., `#1f6feb11`) count as new values and must be added here as named tokens.
 
+The one hardcoded value left in `index.html` is `#fff` on the active and done step badges (`.step-num.active`, `.step-num.done`) — white-on-accent label text, not a palette entry.
+
 ---
 
 ## Spacing & Sizing
 
-All values derived from `index.html` CSS. No spacing tokens exist yet — these are literals. Any Weekend 3+ additions should follow this scale rather than introducing arbitrary values.
+All values derived from `index.html` CSS. No spacing tokens exist yet — these are literals. Any future additions should follow this scale rather than introducing arbitrary values.
 
 ### Spacing Scale
 
@@ -86,7 +100,6 @@ All values derived from `index.html` CSS. No spacing tokens exist yet — these 
 | Button | full-width, 10×14px padding | `border-radius: 6px` |
 | Order context box | full-width, 8×10px padding | `border-radius: 6px` |
 | Saga card | full-width, 14×16px padding | `border-radius: 8px` |
-| Toast | 280px wide | `border-radius: 6px`, 4px left border, 44×44px dismiss touch target |
 | Trigger panel | 320px fixed | left grid column |
 
 ### Layout
@@ -120,7 +133,58 @@ Intent: communicates an in-progress async state without jarring motion. The 50% 
 
 ---
 
-## Authentication (Keycloak OAuth2 — Weekend 3)
+## Existing Component Patterns
+
+| Component         | Pattern                                              | Token                                      |
+|-------------------|------------------------------------------------------|--------------------------------------------|
+| Status badge      | Colored pill, 10px bold, 20px border-radius          | Accent colors per state                    |
+| Step dot          | 10px circle, pulsing animation for RUNNING           | `var(--accent-orange)`                     |
+| Trigger button    | Full-width, left-aligned, border hover               | `var(--border)` → blue hover               |
+| Loading button    | Orange border, spinner emoji visible                 | `var(--accent-orange)`                     |
+| Saga card         | `var(--bg-surface)`, `var(--border)`, 8px radius     | —                                          |
+| Connection dot    | 8px circle in nav, green/red for status              | `var(--accent-green/red)`                  |
+| Step badge        | 18px circle, 3 states: pending (grey) / active (blue) / done (green ✓) | `var(--border)` / `var(--interactive-blue)` / `var(--state-done-green)` |
+| Order context box | Blue-tinted inset showing active orderId in monospace | `var(--interactive-blue-bg)` border + bg  |
+| Payment button (green) | Full-width, green border on hover            | `var(--accent-green)` on hover             |
+| Payment button (red)   | Full-width, red border on hover              | `var(--accent-red)` on hover               |
+| Payment button (orange) | Full-width, orange border on hover          | `var(--accent-orange)` on hover            |
+| Saga card (active) | Blue border highlight for the in-flight saga         | `var(--interactive-blue)` border           |
+| Hint text         | 11px helper text below step groups, line-height 1.5  | `var(--text-dim)`                          |
+| Empty state       | Centred 13px text, 32px vertical padding, shown when no sagas exist | `var(--text-muted)`          |
+| Demo credential hint | Nav-link suffix rendered via `::after { content: attr(data-u) / attr(data-p) }` — 11px, CSS-generated so the credentials are not selectable DOM text and not crawled | `var(--text-dim)` |
+
+**Rule:** New UI elements must use an existing pattern or add a new row to this table.
+
+Feedback is delivered through the per-step `.hint` elements (`setHint()`), not toasts —
+the page has no toast or banner component. See *Deferred Design* for the toast/401-banner
+design that was specified but never built.
+
+---
+
+## What Already Exists
+
+- `index.html` color system: all values now in CSS custom properties (see Token System above).
+- GitHub-dark theme: established and consistent throughout.
+- `pollSagas()` — polls `/api/sagas` every 2s; on failure flips the nav status dot red.
+- `renderSagas()` — rebuilds the saga list via DOM APIs (no `innerHTML`).
+- `setBtnLoading(btn, on)` — reusable loading state for any button.
+- `setPaymentButtonsDisabled(disabled, exceptId)` — locks sibling buttons while a call is in flight.
+- `setStep(n, state)` — drives the step badges through pending → active → done.
+- `setHint(id, text, type)` — writes the per-step feedback line (`ok` / `err` variants).
+
+---
+
+## Deferred Design — Keycloak OAuth2 + Toasts (Weekend 3, not implemented)
+
+Specified on 2026-05-18 ([spec](../docs/superpowers/specs/2026-05-18-weekend-3-design.md)),
+never built. Verified on 2026-08-24: no `spring-boot-starter-oauth2-client` in
+`event-driven/pom.xml`, no `keycloak` service in `compose/docker-compose.yml`, no
+`auth.` host in `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
+markup in `index.html`. **The live demo is unauthenticated** — anyone can POST to the
+saga endpoints; only the Temporal and Kafka UIs are protected, by Caddy `basic_auth`.
+
+The design below is kept as the decision record for if and when auth is picked up.
+Nothing in it describes shipped behaviour.
 
 ### Auth Strategy
 
@@ -201,47 +265,24 @@ Add one sentence to the blurb:
 
 Note: The auth mode is `spring-boot-starter-oauth2-client` with browser session cookies — NOT an OAuth2 Resource Server (which would accept bearer tokens from external clients). These are different Spring Security patterns.
 
----
+### Toasts (also unbuilt)
 
-## Existing Component Patterns
-
-| Component         | Pattern                                              | Token                                      |
-|-------------------|------------------------------------------------------|--------------------------------------------|
-| Status badge      | Colored pill, 10px bold, 20px border-radius          | Accent colors per state                    |
-| Step dot          | 10px circle, pulsing animation for RUNNING           | `var(--accent-orange)`                     |
-| Trigger button    | Full-width, left-aligned, border hover               | `var(--border)` → blue hover               |
-| Loading button    | Orange border, spinner emoji visible                 | `var(--accent-orange)`                     |
-| Saga card         | `var(--bg-surface)`, `var(--border)`, 8px radius     | —                                          |
-| Connection dot    | 8px circle in nav, green/red for status              | `var(--accent-green/red)`                  |
-| Step badge        | 18px circle, 3 states: pending (grey) / active (blue) / done (green ✓) | `var(--border)` / `var(--interactive-blue)` / `var(--state-done-green)` |
-| Order context box | Blue-tinted inset showing active orderId in monospace | `var(--interactive-blue-bg)` border + bg  |
-| Payment button (green) | Full-width, green border on hover            | `var(--accent-green)` on hover             |
-| Payment button (red)   | Full-width, red border on hover              | `var(--accent-red)` on hover               |
-| Payment button (orange) | Full-width, orange border on hover          | `var(--accent-orange)` on hover            |
-| Saga card (active) | Blue border highlight for the in-flight saga         | `var(--interactive-blue)` border           |
-| Hint text         | 11px helper text below step groups, line-height 1.5  | `var(--text-dim)`                          |
-| Toast             | 280px fixed, bottom-right viewport, 4px left border, dismiss X (44px touch target, aria-label="Dismiss notification"), role="status" | Accent color per event type |
-| 401 banner        | Full-width between nav and panels, red border, dismissible, role="alert" aria-live="assertive" | `var(--accent-red)` border |
-
-**Rule:** New UI elements must use an existing pattern or add a new row to this table.
+The same spec added toast notifications: 280px fixed bottom-right, 4px left border,
+accent colour per event type, dismiss X with a 44×44px touch target and
+`aria-label="Dismiss notification"`, `role="status"`; plus a full-width 401 banner
+between nav and panels with `role="alert" aria-live="assertive"`. The shipped page
+uses the per-step `.hint` line instead.
 
 ---
 
-## NOT In Scope (This PR)
+## Known Design Debt
 
-| Decision | Rationale |
-|---|---|
-| Keycloak RP-Initiated Logout (end_session endpoint) | Overkill for a demo — `POST /logout` is sufficient |
-| Custom Keycloak login page styling (full theme) | Default Keycloak theme + custom info text is enough |
-| Mobile responsive redesign of main layout | Pre-existing desktop-first design; auth adds only nav truncation fix |
-| DESIGN.md with full design system documentation | Spacing/sizing section added 2026-05-20. Remaining gap: decisions-deferred section (mobile layout, full Keycloak theme, HTMX rewrite) |
+Deferred deliberately; each is a decision, not an oversight.
 
----
-
-## What Already Exists
-
-- `index.html` color system: all values now in CSS custom properties (see Token System above).
-- GitHub-dark theme: established and consistent throughout.
-- `pollSagas()` error handling: red status dot in nav (pre-existing).
-- `setLoading()` helper: reusable for any button state (pre-existing).
-- `waitForNewSaga()` polling helper: reusable (pre-existing).
+| Item | Status | Rationale |
+|---|---|---|
+| Authentication on the demo | Not built | The saga endpoints are public. Accepted for a portfolio demo; the Keycloak design above is the plan of record if that changes. |
+| Mobile responsive layout | Not built | Desktop-first by design — the audience opens this on a laptop. The 320px trigger panel and `calc(100vh - 105px)` grid assume a wide viewport. |
+| Toast / banner notification system | Not built | Per-step `.hint` text covers every current feedback case with less machinery. |
+| Spacing tokens | Not built | The scale above is documented but still expressed as CSS literals. Tokenise only if a second surface needs it (YAGNI). |
+| HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [TODOS.md](../TODOS.md). |
