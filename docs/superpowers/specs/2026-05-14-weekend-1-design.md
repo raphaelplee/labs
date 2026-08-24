@@ -5,6 +5,9 @@ Branch: main | Repo: raphaelplee/labs
 > **Status: SHIPPED — historical record, not current documentation.**
 > Kept as-written; where it disagrees with the repo, the repo wins. Known drift:
 > the CI workflow runs a bare `mvn test`, not `mvn test -P skip-integration-tests`.
+> The server is named `CX33` in the scope list and DNS tables, but the Server section
+> records what was actually provisioned — a **CPX32**, after CX33 turned out to be
+> unavailable. CPX32 is the running server.
 
 ---
 
