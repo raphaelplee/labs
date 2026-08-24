@@ -135,6 +135,26 @@ browsers that drop the connection.
 
 ---
 
+### Serialise the deploy job
+
+**What:** Add a concurrency group to the `deploy` job in `.github/workflows/ci.yml`:
+
+```yaml
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+```
+
+**Why:** The job has no concurrency guard, so two merges to `main` seconds apart run
+`docker compose up -d` on the same server simultaneously and one of them fails —
+observed on 2026-06-13, the only red run on `main` in the repo's history (see the
+Concurrent deploys note in `event-driven/README.md`). `cancel-in-progress: false`
+queues the second deploy instead of cancelling it, so the newest image still lands.
+
+**Effort:** XS (human ~5 min / CC ~1 min) | **Priority:** P3 | **Depends on:** nothing — ready now
+
+---
+
 ### Docker port exposure policy
 
 **What:** Document which ports are intentionally published from `compose/docker-compose.yml`
