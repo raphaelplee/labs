@@ -6,27 +6,16 @@ workflow through Kafka, on Postgres, served from Hetzner behind Caddy.
 [Demo](https://transflow.raphaellee.de) ·
 [Swagger](https://transflow.raphaellee.de/swagger-ui/index.html) ·
 [Temporal UI](https://temporal.raphaellee.de) ·
-[Kafka UI](https://kafka.raphaellee.de) — both UIs behind Caddy `basic_auth`, user `demo`
+[Kafka UI](https://kafka.raphaellee.de)
 
-```
-compose/       Caddy routes + the docker-compose stack
-event-driven/  The service — source, Dockerfile, migrations, design notes
-.github/       CI: test → image → GHCR → SSH deploy
-```
+Where things live — each fact is written once, in the file named here:
 
-Push to `main` → `mvn test` → image `ghcr.io/raphaelplee/transflow-core:main` → the `deploy`
-job SSHs to `/opt/labs` and runs `git pull && docker compose up -d`. `Integration Tests` runs
-`mvn verify` on every pull request.
+- [`compose/`](compose/) — the stack that runs: Caddy routes, services, `.env.example`
+- [`event-driven/`](event-driven/) — the service: source, migrations,
+  [design record](event-driven/DESIGN.md), [ops notes and open items](event-driven/README.md#ops-notes)
+- [`.github/workflows/`](.github/workflows/) — how a push reaches the server
 
-**Only Caddy publishes ports** (80, 443, 443/udp). Docker bypasses UFW, so a `ports:` mapping
-on any other service is public the moment it lands. Secrets live in `compose/.env` on the
-server only; `compose/.env.example` is the template.
+`raphaellee.my`, `raphaellee.eu` and their subdomains are redirects; the
+[Caddyfile](compose/Caddyfile) is the only place they are defined.
 
-**Known gaps.** No Kafka DLQ — a poisoned offset blocks its consumer group until the topic is
-wiped · the demo is unauthenticated (Keycloak was designed, never built — see
-`event-driven/DESIGN.md`) · the deploy job has no concurrency group · the dashboard polls
-`/api/sagas` every 2 s instead of streaming.
-
-`raphaellee.my` and `raphaellee.eu` 301 to `.de`; `dashboard.raphaellee.de` answers
-"coming soon". Everything removed on 2026-10-25 — module stubs, planning docs, design
-records — is at tag `archive/pre-trim-2026-10-25`.
+Everything removed on 2026-10-25 is at tag `archive/pre-trim-2026-10-25`.

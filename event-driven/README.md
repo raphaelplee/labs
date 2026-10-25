@@ -140,16 +140,31 @@ Error response from daemon: No such container: badc0508b040...
 
 The stack was left healthy — the first deploy had already started the new container — and
 the next merge deployed cleanly. So this is a red CI run, not an outage. Fix is one key on
-the job (see [Known gaps](../README.md#known-gaps)); until then, avoid merging two PRs to `main` at once.
+the job (see [Open items](#open-items)); until then, avoid merging two PRs to `main` at once.
 
 ### Kafka topic poison messages
 
 If a consumer loops on the same offset with deserialization errors, the topic has a poisoned
 message at that offset. The entire consumer group is blocked until it is cleared.
-Fix: delete and recreate the topic (acceptable in dev; use a DLQ in production — see [Known gaps](../README.md#known-gaps)).
+Fix: delete and recreate the topic (acceptable in dev; the DLQ under [Open items](#open-items) is the production fix).
 
 ```bash
 docker exec compose-kafka-1 /opt/kafka/bin/kafka-topics.sh \
   --bootstrap-server localhost:9092 --delete --topic <topic-name>
 docker compose restart kafka-init  # recreates the topic
 ```
+
+### Open items
+
+The four things this service does not do yet. Everything else on this page describes shipped
+behaviour.
+
+- **No Kafka DLQ** — a poisoned offset blocks its consumer group until the topic is wiped
+  (see [Kafka topic poison messages](#kafka-topic-poison-messages)). The fix is a
+  `DefaultErrorHandler` with a `DeadLetterPublishingRecoverer`, plus `*.dlq` topics in `kafka-init`.
+- **The deploy job has no `concurrency` group** — two merges seconds apart collide
+  (see [Concurrent deploys race on the server](#concurrent-deploys-race-on-the-server)).
+- **The demo is unauthenticated** — anyone can POST to the saga endpoints. Keycloak was
+  specified in May 2026 and never built; the design record is in [DESIGN.md](DESIGN.md).
+- **The dashboard polls `/api/sagas` every 2 s** instead of streaming — SSE/HTMX is designed
+  but not built; see [DESIGN.md](DESIGN.md).
