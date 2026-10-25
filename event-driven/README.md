@@ -66,7 +66,9 @@ the whole file because `kafka-init` is a one-shot that exits 0, so the wait is s
 service; the healthcheck probes port 8080 with bash `/dev/tcp` because the JRE image has no curl
 or wget. Caddy is reloaded explicitly at the end — a bind-mounted `Caddyfile` is never reloaded
 by `up -d`, and the old config would keep serving forever. A `deploy-production` concurrency
-group queues concurrent deploys instead of interleaving them.
+group queues concurrent deploys instead of interleaving them. The remote script starts with
+`set -e`, so the first failing command fails the run — the action does not fail the step on a
+remote error by itself.
 
 **Poisoned offsets** — a consumer looping on one offset blocks its group until the topic is
 recreated:
