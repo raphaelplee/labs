@@ -176,7 +176,8 @@ design that was specified but never built.
 
 ## Deferred Design — Keycloak OAuth2 + Toasts (Weekend 3, not implemented)
 
-Specified on 2026-05-18 ([spec](../docs/superpowers/specs/2026-05-18-weekend-3-design.md)),
+Specified on 2026-05-18 (spec archived at tag `archive/pre-trim-2026-10-25`, path
+`docs/superpowers/specs/2026-05-18-weekend-3-design.md`),
 never built. Verified on 2026-08-24: no `spring-boot-starter-oauth2-client` in
 `event-driven/pom.xml`, no `keycloak` service in `compose/docker-compose.yml`, no
 `auth.` host in `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
@@ -285,4 +286,4 @@ Deferred deliberately; each is a decision, not an oversight.
 | Mobile responsive layout | Not built | Desktop-first by design — the audience opens this on a laptop. The 320px trigger panel and `calc(100vh - 105px)` grid assume a wide viewport. |
 | Toast / banner notification system | Not built | Per-step `.hint` text covers every current feedback case with less machinery. |
 | Spacing tokens | Not built | The scale above is documented but still expressed as CSS literals. Tokenise only if a second surface needs it (YAGNI). |
-| HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [TODOS.md](../TODOS.md). |
+| HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [Open items](README.md#open-items). |
