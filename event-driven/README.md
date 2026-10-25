@@ -140,11 +140,10 @@ threads, and NIO buffers.
 | elasticsearch | 1g | `-Xms256m -Xmx768m` |
 | kafka-ui | 400m | `-Xms64m -Xmx320m` |
 
-### Concurrent deploys race on the server
+### Concurrent deploys
 
-The `deploy` job in `.github/workflows/ci.yml` has no `concurrency` group, so two merges
-to `main` in quick succession run `docker compose up -d` on the server at the same time.
-Observed on 2026-06-13 ([run 27467218920](https://github.com/raphaelplee/labs/actions/runs/27467218920)),
+Two merges to `main` seconds apart used to run `docker compose up -d` on the server at the same
+time. Observed on 2026-06-13 ([run 27467218920](https://github.com/raphaelplee/labs/actions/runs/27467218920)),
 when three Dependabot PRs merged within ten seconds: one deploy recreated `transflow-core`
 while another was mid-recreate, and the second failed with
 
@@ -154,9 +153,31 @@ Container compose-transflow-core-1 Starting
 Error response from daemon: No such container: badc0508b040...
 ```
 
-The stack was left healthy — the first deploy had already started the new container — and
-the next merge deployed cleanly. So this is a red CI run, not an outage. Fix is one key on
-the job (see [Open items](#open-items)); until then, avoid merging two PRs to `main` at once.
+The stack was left healthy — the first deploy had already started the new container — so this
+was a red CI run, not an outage. The job now carries a `deploy-production` concurrency group
+with `cancel-in-progress: false`, which queues a second deploy instead of interleaving it.
+
+### Deploy gate
+
+`docker compose up -d --wait` waits for every service in the file, and `kafka-init` is a
+one-shot that exits 0 — Compose reports `container compose-kafka-init-1 exited (0)` and fails
+the run. The deploy therefore converges the stack with plain `up -d` and then waits on
+`transflow-core` alone, the only service whose readiness changes what a visitor sees.
+
+The check is `timeout 3 bash -c '</dev/tcp/127.0.0.1/8080'` rather than curl or wget: the
+runtime image is `eclipse-temurin:25-jre-jammy`, an Ubuntu 22.04 base that ships bash and
+coreutils but neither of those. A closed port fails the check, so `docker compose ps` now
+distinguishes starting from serving, and a deploy that leaves the site returning 502 goes red
+instead of green.
+
+### Caddy reload
+
+`compose/Caddyfile` is bind-mounted into the container, and Compose compares service
+definitions rather than file contents — so `docker compose up -d` never reloads Caddy after a
+routing change, and the previous config keeps serving indefinitely. The deploy ends with
+`docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
+A malformed Caddyfile makes the reload exit non-zero, which fails the deploy while Caddy
+continues serving the config it already has.
 
 ### Kafka topic poison messages
 
@@ -172,14 +193,12 @@ docker compose restart kafka-init  # recreates the topic
 
 ### Open items
 
-The four things this service does not do yet. Everything else on this page describes shipped
+The three things this service does not do yet. Everything else on this page describes shipped
 behaviour.
 
 - **No Kafka DLQ** — a poisoned offset blocks its consumer group until the topic is wiped
   (see [Kafka topic poison messages](#kafka-topic-poison-messages)). The fix is a
   `DefaultErrorHandler` with a `DeadLetterPublishingRecoverer`, plus `*.dlq` topics in `kafka-init`.
-- **The deploy job has no `concurrency` group** — two merges seconds apart collide
-  (see [Concurrent deploys race on the server](#concurrent-deploys-race-on-the-server)).
 - **The demo is unauthenticated** — anyone can POST to the saga endpoints. Keycloak was
   specified in May 2026 and never built; the design record is in [DESIGN.md](DESIGN.md).
 - **The dashboard polls `/api/sagas` every 2 s** instead of streaming — SSE/HTMX is designed

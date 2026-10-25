@@ -175,6 +175,12 @@ services:
       kafka-init:
         condition: service_completed_successfully
     mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/127.0.0.1/8080' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
 
 volumes:
   caddy_data:

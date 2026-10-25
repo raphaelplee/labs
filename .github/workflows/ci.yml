@@ -63,6 +63,9 @@ jobs:
     needs: publish
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     steps:
       - name: Add server to known_hosts
         env:
@@ -81,3 +84,6 @@ jobs:
             cd compose
             docker compose pull transflow-core
             docker compose up -d
+            docker compose up -d --wait --wait-timeout 180 transflow-core \
+              || { docker compose logs --tail=50 transflow-core; exit 1; }
+            docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
