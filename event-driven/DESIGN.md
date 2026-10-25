@@ -286,4 +286,4 @@ Deferred deliberately; each is a decision, not an oversight.
 | Mobile responsive layout | Not built | Desktop-first by design — the audience opens this on a laptop. The 320px trigger panel and `calc(100vh - 105px)` grid assume a wide viewport. |
 | Toast / banner notification system | Not built | Per-step `.hint` text covers every current feedback case with less machinery. |
 | Spacing tokens | Not built | The scale above is documented but still expressed as CSS literals. Tokenise only if a second surface needs it (YAGNI). |
-| HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [TODOS.md](../TODOS.md). |
+| HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [Known gaps](../README.md#known-gaps). |

@@ -16,7 +16,9 @@ Spring Boot 4 (single JVM)
 ├── module: payment        — Payment entity, REST API, payment.processed/failed events
 └── module: fulfillment    — FulfillmentRecord entity, Kafka consumer, fulfillment.completed event
 
-Module boundaries enforced by Spring Modulith + ArchUnit (cross-package imports fail CI).
+Module boundaries are declared by `@ApplicationModule(allowedDependencies = …)` in each
+`package-info.java` and checked by four ArchUnit rules in `ArchUnitTest`. Spring Modulith's own
+`ApplicationModules.of(…).verify()` pass — which would enforce the same declarations — is not wired.
 ```
 
 ## Kafka Topic API Contract
@@ -34,7 +36,9 @@ These topics are the **public integration surface** of transflow-core. A future 
 
 **Serialization:** Spring Modulith publishes via `ByteArraySerializer` — messages are raw JSON bytes with no `__TypeId__` headers. Consumers use `ByteArrayDeserializer` (Kafka client layer) + `ByteArrayJacksonJsonMessageConverter` registered as a single `@Bean` (Spring layer). Spring Boot 4 auto-wires a single `RecordMessageConverter` bean to the listener factory via `ObjectProvider.getIfUnique()`; the target type is inferred from the `@KafkaListener` method parameter. Note: `ByteArrayJsonMessageConverter` is deprecated since Spring Kafka 4.0 — use `ByteArrayJacksonJsonMessageConverter`.
 
-**WorkflowId convention:** `"saga-" + subscriptionId.toString()` (e.g. `saga-018f1234-dead-7000-beef-000000000001`)
+**WorkflowId convention:** `"saga-" + subscriptionId.toString()` (e.g. `saga-<subscriptionId>`).
+The prefix is written literally in five places — the four Kafka consumers and the status mapper —
+and is the only link between a subscription and its workflow.
 
 ## Saga State Machine
 
@@ -42,7 +46,7 @@ These topics are the **public integration surface** of transflow-core. A future 
 AWAITING_PAYMENT
   ├── [paymentOk signal]      → FULFILLMENT_PROCESSING
   │     ├── [fulfillmentDone] → COMPLETED
-  │     └── [30s timeout]    → TIMED_OUT
+  │     └── [timeout]         → TIMED_OUT
   └── [paymentFailed signal]  → PAYMENT_FAILED
 ```
 
@@ -72,10 +76,11 @@ about than microservices; harder to accidentally couple than a flat package stru
 JVM restarts mid-saga, execution resumes from the last checkpoint. Without Temporal,
 you'd build that recovery logic yourself (and get it wrong under concurrent load).
 
-**Kafka** is the external integration surface, not the internal bus. Intra-app events
-use Spring Modulith's `@ApplicationModuleListener` (in-process, transactional).
-Kafka carries events that cross process boundaries — a future Rust IoT service or
-Go analytics consumer can subscribe to `payment.processed` without touching this JVM.
+**Kafka** is both the integration surface and the internal bus. Every cross-module event is
+`@Externalized` to a topic and picked up by another module's `@KafkaListener`, so no module ever
+invokes another's listeners in-process — `@ApplicationModuleListener` is not used anywhere. Kafka
+also carries events that cross process boundaries: a future Rust IoT service or Go analytics
+consumer can subscribe to `payment.processed` without touching this JVM.
 
 The combination answers a common design question: when do you use the message broker
 vs the workflow engine? Kafka = fan-out to unknown consumers. Temporal = orchestrate
@@ -135,13 +140,13 @@ Error response from daemon: No such container: badc0508b040...
 
 The stack was left healthy — the first deploy had already started the new container — and
 the next merge deployed cleanly. So this is a red CI run, not an outage. Fix is one key on
-the job (see [TODOS.md](../TODOS.md)); until then, avoid merging two PRs to `main` at once.
+the job (see [Known gaps](../README.md#known-gaps)); until then, avoid merging two PRs to `main` at once.
 
 ### Kafka topic poison messages
 
 If a consumer loops on the same offset with deserialization errors, the topic has a poisoned
 message at that offset. The entire consumer group is blocked until it is cleared.
-Fix: delete and recreate the topic (acceptable in dev; use a DLQ in production — see TODOS.md).
+Fix: delete and recreate the topic (acceptable in dev; use a DLQ in production — see [Known gaps](../README.md#known-gaps)).
 
 ```bash
 docker exec compose-kafka-1 /opt/kafka/bin/kafka-topics.sh \

@@ -6,8 +6,9 @@ target/
 compose/.env
 *.env
 
-# OS
+# OS / IDE
 .DS_Store
 Thumbs.db
 .gstack/
 .claude/
+.idea/
