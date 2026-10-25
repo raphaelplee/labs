@@ -111,6 +111,22 @@ the package entry is deleted. Use credentials instead:
 echo '<PAT>' | docker login ghcr.io -u raphaelplee --password-stdin
 ```
 
+### Compose secrets
+
+`compose/.env` holds two values. Generate the Caddy password hash with:
+
+```bash
+docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
+```
+
+### Adminer
+
+Adminer is in the stack but not routed by Caddy — reach it through a tunnel:
+
+```bash
+ssh -L 5050:adminer:8080 root@raphaellee.de
+```
+
 ### JVM memory in containers
 
 Docker's `mem_limit` is a cgroup hard limit, but JVM ergonomics size the heap from host RAM

@@ -34,7 +34,6 @@ class OrderModuleTest {
     static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer(
         DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
-    // Temporal is in the orchestration module — mock it so standalone context starts cleanly
     @MockitoBean
     WorkflowClient workflowClient;
 

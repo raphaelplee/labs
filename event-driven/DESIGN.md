@@ -287,3 +287,26 @@ Deferred deliberately; each is a decision, not an oversight.
 | Toast / banner notification system | Not built | Per-step `.hint` text covers every current feedback case with less machinery. |
 | Spacing tokens | Not built | The scale above is documented but still expressed as CSS literals. Tokenise only if a second surface needs it (YAGNI). |
 | HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [Open items](README.md#open-items). |
+
+---
+
+## Notes the code cannot tell you
+
+- **Temporal runs on its own Postgres in `SagaFlowIntegrationTest`.** One shared instance crashed
+  under the combined application + Temporal persistence load ("unexpected postmaster exit") and
+  took the application database with it. `temporalio/auto-setup` has no SQLite driver — valid
+  values are `mysql8`, `postgres12`, `postgres12_pgx`, `cassandra` — so it runs `postgres12` with
+  SQL visibility, mirroring `compose/` rather than Elasticsearch.
+- **`application-test.yml` has to stay a profile file.** A test `application.yml` at the same
+  classpath path replaces the main configuration wholesale instead of merging, which silently
+  drops the Kafka serializers, offset reset and schema settings. It broke the saga→fulfillment
+  flow once already.
+- **`max.poll.interval.ms: 60000` is coupled to the 35 s sleep in `FulfillmentConsumer`.** Lower
+  one without the other and the consumer is evicted mid-poll; raise the sleep past the interval
+  and the same thing happens.
+- **`postgresql.version` is pinned to 42.7.11** because the Boot BOM ships 42.7.10, which predates
+  the SCRAM-SHA-256 fix.
+- **The API queries every workflow's `getStatus()`.** A workflow that returns normally is
+  `COMPLETED` whether it fulfilled, failed payment or timed out, so Temporal's execution status
+  cannot distinguish the three terminal states. Querying a closed workflow replays its history —
+  correct, but not free, and the dashboard polls it every two seconds.

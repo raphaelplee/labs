@@ -21,8 +21,6 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse confirmPayment(UUID orderId, PaymentScenario scenario) {
-        // Note: orderService.getOrder() joins this transaction (REQUIRED propagation);
-        // its readOnly hint is discarded — this outer transaction is read-write.
         var order = orderService.getOrder(orderId);
         var payment = new Payment(orderId, "PROCESSED", scenario);
         repository.save(payment);
@@ -33,8 +31,6 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse failPayment(UUID orderId) {
-        // Note: orderService.getOrder() joins this transaction (REQUIRED propagation);
-        // its readOnly hint is discarded — this outer transaction is read-write.
         var order = orderService.getOrder(orderId);
         var payment = new Payment(orderId, "FAILED", null);
         repository.save(payment);

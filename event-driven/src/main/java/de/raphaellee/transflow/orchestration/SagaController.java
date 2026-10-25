@@ -79,11 +79,6 @@ class SagaController {
         return ResponseEntity.ok(mapper.fromDescribeResponse(response, querySagaStatus(sagaId, runId)));
     }
 
-    /**
-     * Queries the workflow's internal getStatus() @QueryMethod. Works for both running and
-     * closed (completed/failed) workflows — Temporal replays history to reconstruct the state.
-     * Returns null if the query fails; callers fall back to the Temporal-level status.
-     */
     private String querySagaStatus(String workflowId, String runId) {
         try {
             return workflowClient
