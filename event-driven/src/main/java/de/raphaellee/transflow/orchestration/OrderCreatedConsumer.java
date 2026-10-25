@@ -36,8 +36,6 @@ class OrderCreatedConsumer {
         var options = WorkflowOptions.newBuilder()
             .setWorkflowId(workflowId)
             .setTaskQueue(taskQueue)
-            // Store orderId in workflow memo so SagaStatusMapper can surface it
-            // without a cross-module DB query. Memo is immutable after workflow start.
             .setMemo(Map.of("orderId", event.orderId().toString()))
             .build();
 

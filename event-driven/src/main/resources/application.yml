@@ -1,5 +1,5 @@
 server:
-  forward-headers-strategy: native  # trust X-Forwarded-Proto from Caddy reverse proxy
+  forward-headers-strategy: native
 
 spring:
   application:
@@ -23,9 +23,9 @@ spring:
       auto-offset-reset: earliest
       value-deserializer: org.apache.kafka.common.serialization.ByteArrayDeserializer
       properties:
-        max.poll.interval.ms: 60000   # allows up to 60s processing; fulfillment-timeout scenario sleeps 35s
+        max.poll.interval.ms: 60000
     producer:
-      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer  # Spring Modulith produces byte[] payloads; ByteArraySerializer sends raw JSON bytes that JsonDeserializer can parse
+      value-serializer: org.apache.kafka.common.serialization.ByteArraySerializer
   temporal:
     connection:
       target: ${TEMPORAL_ADDRESS:localhost:7233}
@@ -52,4 +52,4 @@ springdoc:
     display-request-duration: true
     disable-swagger-default-url: true
   writer-with-default-pretty-printer: true
-  override-with-generic-response: false  # prevent GlobalExceptionHandler responses from being injected into every endpoint
+  override-with-generic-response: false

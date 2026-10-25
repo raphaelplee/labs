@@ -32,7 +32,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Tag("integration")
 class SagaFlowIntegrationTest {
 
-    // Network shared between Temporal and its dedicated Postgres.
     static Network network = Network.newNetwork();
 
     @Container
@@ -44,18 +43,11 @@ class SagaFlowIntegrationTest {
     static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer(
         DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
-    // Dedicated Postgres for Temporal. A single shared instance crashed under the
-    // combined app + Temporal persistence load ("unexpected postmaster exit"),
-    // taking the app's database down with it; isolating Temporal's store keeps the
-    // app database stable.
     @Container
     static PostgreSQLContainer<?> temporalDb = new PostgreSQLContainer<>("postgres:17.10")
         .withNetwork(network)
         .withNetworkAliases("temporal-postgres");
 
-    // temporalio/auto-setup does not support DB=sqlite (valid: mysql8, postgres12,
-    // postgres12_pgx, cassandra). Mirror production (compose) by backing Temporal
-    // with postgres12. Visibility uses the SQL store (no Elasticsearch needed).
     @Container
     @SuppressWarnings("resource")
     static GenericContainer<?> temporal = new GenericContainer<>("temporalio/auto-setup:1.29.6.1")
@@ -88,10 +80,6 @@ class SagaFlowIntegrationTest {
         var order = orderService.createOrder(subId);
         paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
 
-        // Wait for fulfillment record to appear — proxy for saga COMPLETED state.
-        // ignoreExceptions(): getByOrderId throws EntityNotFoundException until the
-        // async payment.processed → FulfillmentConsumer flow creates the record, so
-        // the exception must be retried, not treated as a hard failure.
         await().atMost(60, SECONDS).ignoreExceptions().untilAsserted(() -> {
             var fulfillment = fulfillmentService.getByOrderId(order.orderId());
             assertThat(fulfillment.status()).isEqualTo("FULFILLED");

@@ -287,3 +287,113 @@ Deferred deliberately; each is a decision, not an oversight.
 | Toast / banner notification system | Not built | Per-step `.hint` text covers every current feedback case with less machinery. |
 | Spacing tokens | Not built | The scale above is documented but still expressed as CSS literals. Tokenise only if a second surface needs it (YAGNI). |
 | HTMX / SSE rewrite | Not built | The page polls `/api/sagas` every 2s. Server-Sent Events would remove the poll; tracked in [Open items](README.md#open-items). |
+
+---
+
+## Implementation Notes
+
+Why the code looks the way it does. This section is the single home for the reasoning that
+used to sit in inline comments; the sources carry no explanations, only names.
+
+### Kafka wire format
+
+Spring Modulith externalises domain events as raw JSON bytes through `ByteArraySerializer`, so
+messages carry no `__TypeId__` header. The consumer side pairs `ByteArrayDeserializer` (client
+layer, bytes pass through untouched) with a single `ByteArrayJacksonJsonMessageConverter` bean
+(Spring layer), which deserialises to the target type inferred from the `@KafkaListener` method
+parameter. That is why no type headers are needed and no listener factory is configured by hand:
+Spring Boot 4 injects the one `RecordMessageConverter` bean into the auto-configured factory
+through `ObjectProvider.getIfUnique()`.
+
+`ByteArrayJsonMessageConverter` is deprecated as of Spring Kafka 4.0; the Jackson variant is
+its replacement.
+
+The producer's `ByteArraySerializer` is deliberate for the same reason: Modulith hands over
+`byte[]`, and the bytes are already JSON.
+
+### Payment scenarios
+
+`PaymentScenario` exists so the demo can drive both saga endings from the same API.
+`HAPPY_PATH` fulfils, `FULFILLMENT_TIMEOUT` makes the fulfillment consumer slow enough to trip
+the workflow timer. Spring MVC binds the request parameter by name, case-insensitively
+(`StringToEnumConverterFactory`), and Jackson writes the constant name on the Kafka wire.
+
+### Transaction propagation in payment
+
+`PaymentService.confirmPayment` and `failPayment` call `OrderService.getOrder()`, which is
+annotated `@Transactional(readOnly = true)`. With the default `REQUIRED` propagation it joins
+the caller's read-write transaction, so its `readOnly` hint is discarded. The payment write and
+the order read are one transaction — intentional, because the event publication must commit with
+the payment row.
+
+### Workflow memo
+
+`orderId` is written into the workflow memo at start so `SagaStatusMapper` can surface it
+without a cross-module database query. Memo is immutable once the workflow has started.
+
+### How a saga's status is resolved
+
+The `getStatus()` query wins over Temporal's own execution status, because a normally returning
+workflow is `COMPLETED` whether it fulfilled, failed payment or timed out — Temporal cannot tell
+those apart. Querying a closed workflow works: Temporal replays history to answer it. If the
+query throws, the mapper falls back to the Temporal-level status and the caller loses the
+internal distinction rather than the whole response.
+
+`closedAt` stays `null` for a running workflow instead of being filled with `Instant.now()`,
+which would return a different value on every request. `RUNNING` is the only Temporal-level
+status that is not also an internal state, which is why the temporal fallback is a separate
+mapping step and why unknown statuses fall through to the raw Temporal enum name.
+
+### HTTP error mapping
+
+`GlobalExceptionHandler` maps `EntityNotFoundException` to 404, `IllegalStateException` to 409,
+`DataIntegrityViolationException` to 409 (the concurrent-duplicate path that slips past the
+application-level uniqueness check) and gRPC `StatusRuntimeException` to 503. Responses are
+RFC 9457 `ProblemDetail`.
+
+`springdoc.override-with-generic-response: false` keeps those handler responses out of every
+endpoint's generated OpenAPI document.
+
+### Configuration knobs
+
+| Setting | Why |
+|---|---|
+| `server.forward-headers-strategy: native` | Trust `X-Forwarded-Proto` from the Caddy reverse proxy |
+| `spring.kafka.consumer.properties.max.poll.interval.ms: 60000` | Allows up to 60 s of listener work; the `FULFILLMENT_TIMEOUT` scenario sleeps 35 s |
+| `spring.jpa.hibernate.ddl-auto: validate` | Flyway owns the schema; Hibernate only checks it |
+| `springdoc.api-docs.version: openapi_3_1` | OAS 3.1 output |
+
+`postgresql.version` is pinned to 42.7.11 in `pom.xml` to override the Boot BOM's 42.7.10, which
+predates the SCRAM-SHA-256 fix.
+
+### UI decisions
+
+Two greens with different jobs: `--accent-green` is the status indicator, the "state done" green
+is GitHub's for completed steps. Same for the interactive blue, which is GitHub's chrome blue and
+distinct from the `--accent-blue` link colour. Badge tints are per saga state.
+
+Demo credentials are rendered through a CSS `attr()` pseudo-element, so they never appear as
+selectable DOM text and are not crawlable.
+
+### Test harness
+
+Module tests mock `WorkflowClient` so a single-module context starts without a Temporal server;
+they cover module behaviour, not the wire.
+
+`SagaFlowIntegrationTest` runs Temporal on its own Postgres. A single shared instance crashed
+under the combined application-plus-Temporal persistence load ("unexpected postmaster exit") and
+took the application's database down with it. `temporalio/auto-setup` has no SQLite driver — the
+valid values are `mysql8`, `postgres12`, `postgres12_pgx` and `cassandra` — so it runs
+`postgres12` with SQL-based visibility and no Elasticsearch, mirroring `compose/`.
+
+`application-test.yml` layers over the main configuration instead of shadowing it: a test
+`application.yml` at the same classpath path would replace the main file wholesale and silently
+drop the Kafka serializers, offset reset and schema settings, which broke the saga→fulfillment
+flow when it was tried. It is activated by `spring.profiles.active=test` in the Surefire and
+Failsafe configuration.
+
+`SagaIntegrationTest` asserts raw HTTP status codes, so its `RestTemplate` error handler returns
+instead of throwing. Its fulfillment assertions use `ignoreExceptions()` because
+`getByOrderId` throws `EntityNotFoundException` until the asynchronous payment→fulfillment hop
+has created the record; the exception is a retry signal, not a failure.
+

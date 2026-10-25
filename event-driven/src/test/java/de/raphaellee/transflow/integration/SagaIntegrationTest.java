@@ -38,7 +38,6 @@ class SagaIntegrationTest {
     static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer(
         DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
-    // Mock Temporal — these tests cover order/payment REST API, not the full saga wire
     @MockitoBean
     WorkflowClient workflowClient;
 
@@ -53,7 +52,6 @@ class SagaIntegrationTest {
     @BeforeEach
     void setUp() {
         rest = new RestTemplate();
-        // Never throw on 4xx/5xx — return ResponseEntity with the actual status instead
         rest.setErrorHandler(response -> false);
     }
 

@@ -16,8 +16,6 @@ class ArchUnitTest {
 
     @Test
     void payment_doesNotImportOrderInternals() {
-        // Note: PaymentController/PaymentService are allowed to call OrderService (public API).
-        // The rule targets internal classes — Order entity and OrderRepository.
         ArchRule internalRule = noClasses()
             .that().resideInAPackage("de.raphaellee.transflow.payment..")
             .should().accessClassesThat()
