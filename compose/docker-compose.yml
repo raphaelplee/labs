@@ -1,4 +1,3 @@
-# compose/docker-compose.yml
 x-logging: &default-logging
   driver: json-file
   options:
@@ -42,7 +41,6 @@ services:
     restart: always
     logging: *default-logging
     mem_limit: 64m
-    # Not exposed via Caddy — access via: ssh -L 5050:adminer:8080 user@raphaellee.de
 
   elasticsearch:
     image: elasticsearch:8.17.0

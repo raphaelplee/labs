@@ -27,7 +27,6 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ProblemDetail duplicateKey(DataIntegrityViolationException ex) {
-        // Catches concurrent duplicate inserts that pass application-level check
         var detail = ProblemDetail.forStatus(HttpStatus.CONFLICT);
         detail.setDetail("Resource already exists (concurrent duplicate)");
         return detail;
