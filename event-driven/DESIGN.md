@@ -176,7 +176,8 @@ design that was specified but never built.
 
 ## Deferred Design — Keycloak OAuth2 + Toasts (Weekend 3, not implemented)
 
-Specified on 2026-05-18 ([spec](../docs/superpowers/specs/2026-05-18-weekend-3-design.md)),
+Specified on 2026-05-18 (spec archived at tag `archive/pre-trim-2026-10-25`, path
+`docs/superpowers/specs/2026-05-18-weekend-3-design.md`),
 never built. Verified on 2026-08-24: no `spring-boot-starter-oauth2-client` in
 `event-driven/pom.xml`, no `keycloak` service in `compose/docker-compose.yml`, no
 `auth.` host in `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
