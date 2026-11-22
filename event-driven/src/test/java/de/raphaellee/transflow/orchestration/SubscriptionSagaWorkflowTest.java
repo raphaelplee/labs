@@ -22,14 +22,14 @@ class SubscriptionSagaWorkflowTest {
 
     @Test
     void paymentOk_advancesToFulfillmentProcessing(SubscriptionSagaWorkflow workflow) {
-        WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30);
+        WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30, 600);
         workflow.paymentOk();
         assertThat(workflow.getStatus()).isEqualTo("FULFILLMENT_PROCESSING");
     }
 
     @Test
     void paymentFailed_reachesPaymentFailedEndState(SubscriptionSagaWorkflow workflow, TestWorkflowEnvironment env) {
-        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30);
+        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30, 600);
         workflow.paymentFailed();
         env.getWorkflowClient().newUntypedWorkflowStub(exec.getWorkflowId()).getResult(Void.class);
         assertThat(workflow.getStatus()).isEqualTo("PAYMENT_FAILED");
@@ -37,7 +37,7 @@ class SubscriptionSagaWorkflowTest {
 
     @Test
     void paymentOkThenFulfillmentDone_reachesCompleted(SubscriptionSagaWorkflow workflow, TestWorkflowEnvironment env) {
-        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30);
+        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30, 600);
         workflow.paymentOk();
         workflow.fulfillmentDone();
         env.getWorkflowClient().newUntypedWorkflowStub(exec.getWorkflowId()).getResult(Void.class);
@@ -45,8 +45,16 @@ class SubscriptionSagaWorkflowTest {
     }
 
     @Test
+    void noPaymentBeforeDeadline_reachesPaymentTimedOut(SubscriptionSagaWorkflow workflow, TestWorkflowEnvironment env) {
+        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30, 600);
+        env.sleep(Duration.ofSeconds(601));
+        env.getWorkflowClient().newUntypedWorkflowStub(exec.getWorkflowId()).getResult(Void.class);
+        assertThat(workflow.getStatus()).isEqualTo("PAYMENT_TIMED_OUT");
+    }
+
+    @Test
     void paymentOkThenTimerFires_reachesTimedOut(SubscriptionSagaWorkflow workflow, TestWorkflowEnvironment env) {
-        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30);
+        var exec = WorkflowClient.start(workflow::run, "order-1", UUID.randomUUID(), 30, 600);
         workflow.paymentOk();
         env.sleep(Duration.ofSeconds(31));
         env.getWorkflowClient().newUntypedWorkflowStub(exec.getWorkflowId()).getResult(Void.class);

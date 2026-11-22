@@ -1,6 +1,10 @@
 package de.raphaellee.transflow.fulfillment;
 
 import io.swagger.v3.oas.annotations.Operation;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
@@ -20,10 +24,12 @@ public class FulfillmentController {
     }
 
     @GetMapping
-    @Operation(summary = "List all fulfillment records")
+    @Operation(summary = "List fulfillment records, newest first, one page at a time")
     @ApiResponse(responseCode = "200", description = "Fulfillment records returned")
-    public ResponseEntity<List<FulfillmentResponse>> list() {
-        return ResponseEntity.ok(fulfillmentService.listAll());
+    public ResponseEntity<List<FulfillmentResponse>> list(
+            @ParameterObject
+            @PageableDefault(size = 50, sort = "fulfilledAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return ResponseEntity.ok(fulfillmentService.list(pageable));
     }
 
     @GetMapping("/{orderId}")

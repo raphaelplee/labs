@@ -9,6 +9,7 @@ import java.util.UUID;
 public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 
     private static final Logger log = Workflow.getLogger(SubscriptionSagaWorkflowImpl.class);
+    private static final String PAYMENT_TIMEOUT_CHANGE = "payment-timeout";
 
     private boolean paymentOk = false;
     private boolean paymentFailed = false;
@@ -16,10 +17,14 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
     private String status = "AWAITING_PAYMENT";
 
     @Override
-    public void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds) {
+    public void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds, int paymentTimeoutSeconds) {
         log.info("Saga started — orderId={} subscriptionId={}", orderId, subscriptionId);
 
-        Workflow.await(() -> paymentOk || paymentFailed);
+        if (!awaitPayment(paymentTimeoutSeconds)) {
+            status = "PAYMENT_TIMED_OUT";
+            log.info("No payment within {}s — orderId={}", paymentTimeoutSeconds, orderId);
+            return;
+        }
 
         if (paymentFailed) {
             status = "PAYMENT_FAILED";
@@ -41,6 +46,15 @@ public class SubscriptionSagaWorkflowImpl implements SubscriptionSagaWorkflow {
 
         status = "COMPLETED";
         log.info("Saga COMPLETED — orderId={}", orderId);
+    }
+
+    private boolean awaitPayment(int paymentTimeoutSeconds) {
+        int version = Workflow.getVersion(PAYMENT_TIMEOUT_CHANGE, Workflow.DEFAULT_VERSION, 1);
+        if (version == Workflow.DEFAULT_VERSION) {
+            Workflow.await(() -> paymentOk || paymentFailed);
+            return true;
+        }
+        return Workflow.await(Duration.ofSeconds(paymentTimeoutSeconds), () -> paymentOk || paymentFailed);
     }
 
     @Override

@@ -10,7 +10,7 @@ import java.util.UUID;
 public interface SubscriptionSagaWorkflow {
 
     @WorkflowMethod
-    void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds);
+    void run(String orderId, UUID subscriptionId, int fulfillmentTimeoutSeconds, int paymentTimeoutSeconds);
 
     @SignalMethod
     void paymentOk();
