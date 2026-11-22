@@ -22,9 +22,7 @@ class SagaStatusMapper {
 
     private SagaStatus toSagaStatus(WorkflowExecutionInfo info, String internalStatus) {
         String workflowId = info.getExecution().getWorkflowId();
-        UUID subscriptionId = workflowId.startsWith("saga-")
-            ? UUID.fromString(workflowId.substring(5))
-            : UUID.fromString(workflowId);
+        UUID subscriptionId = SagaClient.subscriptionId(workflowId);
 
         String status = internalStatus != null ? internalStatus : mapStatus(info.getStatus());
         Instant startedAt = Instant.ofEpochSecond(
@@ -74,6 +72,10 @@ class SagaStatusMapper {
             case "PAYMENT_FAILED" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),
                 new SagaStep("PAYMENT_FAILED", "FAILED")
+            );
+            case "PAYMENT_TIMED_OUT" -> List.of(
+                new SagaStep("ORDER_CREATED", "COMPLETED"),
+                new SagaStep("AWAITING_PAYMENT", "TIMED_OUT")
             );
             case "TIMED_OUT" -> List.of(
                 new SagaStep("ORDER_CREATED", "COMPLETED"),

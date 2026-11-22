@@ -20,10 +20,10 @@ public class PaymentController {
     }
 
     @PostMapping("/{orderId}/confirm")
-    @Operation(summary = "Confirm payment — triggers PAYMENT_OK saga signal")
-    @ApiResponse(responseCode = "202", description = "Payment accepted, saga signalled")
+    @Operation(summary = "Confirm payment — the saga receives paymentOk asynchronously")
+    @ApiResponse(responseCode = "202", description = "Payment recorded, or the same outcome already recorded")
     @ApiResponse(responseCode = "404", description = "Order not found")
-    @ApiResponse(responseCode = "503", description = "Temporal workflow service unavailable")
+    @ApiResponse(responseCode = "409", description = "Payment already failed for this order")
     public ResponseEntity<PaymentResponse> confirm(
             @PathVariable UUID orderId,
             @RequestParam(defaultValue = "HAPPY_PATH") PaymentScenario scenario) {
@@ -32,10 +32,10 @@ public class PaymentController {
     }
 
     @PostMapping("/{orderId}/fail")
-    @Operation(summary = "Fail payment — triggers PAYMENT_FAILED saga signal")
-    @ApiResponse(responseCode = "202", description = "Payment failed, saga signalled")
+    @Operation(summary = "Fail payment — the saga receives paymentFailed asynchronously")
+    @ApiResponse(responseCode = "202", description = "Payment recorded, or the same outcome already recorded")
     @ApiResponse(responseCode = "404", description = "Order not found")
-    @ApiResponse(responseCode = "503", description = "Temporal workflow service unavailable")
+    @ApiResponse(responseCode = "409", description = "Payment already processed for this order")
     public ResponseEntity<PaymentResponse> fail(@PathVariable UUID orderId) {
         var response = paymentService.failPayment(orderId);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);

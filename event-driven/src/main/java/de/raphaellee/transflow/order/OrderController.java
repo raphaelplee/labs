@@ -21,10 +21,10 @@ public class OrderController {
     }
 
     @PostMapping
-    @Operation(summary = "Create a new order and start a saga")
-    @ApiResponse(responseCode = "201", description = "Order created, saga started")
+    @Operation(summary = "Create a new order; the saga starts asynchronously")
+    @ApiResponse(responseCode = "201", description = "Order created")
     @ApiResponse(responseCode = "400", description = "Invalid request body")
-    @ApiResponse(responseCode = "409", description = "Active order already exists for this subscription")
+    @ApiResponse(responseCode = "409", description = "An order already exists for this subscription")
     public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request) {
         var response = orderService.createOrder(request.subscriptionId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

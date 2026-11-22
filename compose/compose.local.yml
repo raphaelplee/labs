@@ -1,0 +1,8 @@
+services:
+  transflow-core:
+    image: transflow-core:local
+    build:
+      context: ..
+      dockerfile: event-driven/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"

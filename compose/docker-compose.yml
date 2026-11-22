@@ -16,7 +16,7 @@ services:
     environment:
       CADDY_DEMO_PASSWORD_HASH: ${CADDY_DEMO_PASSWORD_HASH}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
     mem_limit: 64m
@@ -40,6 +40,8 @@ services:
     image: adminer:4
     restart: always
     logging: *default-logging
+    ports:
+      - "127.0.0.1:5050:8080"
     mem_limit: 64m
 
   elasticsearch:
@@ -76,6 +78,7 @@ services:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx768m"
     volumes:
       - kafka_data:/var/lib/kafka/data
     mem_limit: 1g
@@ -93,14 +96,19 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    command: >
-      bash -c "
-      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic order.created &&
-      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic payment.processed &&
-      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic payment.failed &&
-      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --partitions 1 --replication-factor 1 --topic fulfillment.completed &&
-      echo 'Topics created'
-      "
+    environment:
+      KAFKA_HEAP_OPTS: "-Xmx64m"
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        for topic in order.created payment.processed payment.failed fulfillment.completed; do
+          for name in "$$topic" "$$topic-dlt"; do
+            /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 \
+              --partitions 1 --replication-factor 1 --topic "$$name"
+          done
+        done
     restart: "no"
 
   kafka-ui:
@@ -111,6 +119,7 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       SERVER_PORT: 8090
+      KAFKA_CLUSTERS_0_READONLY: "true"
       JAVA_OPTS: "-Xms64m -Xmx320m"
     depends_on:
       kafka:
@@ -153,13 +162,14 @@ services:
     environment:
       TEMPORAL_ADDRESS: temporal:7233
       TEMPORAL_UI_PORT: 8233
+      TEMPORAL_DISABLE_WRITE_ACTIONS: "true"
     depends_on:
       temporal:
         condition: service_healthy
     mem_limit: 128m
 
   transflow-core:
-    image: ghcr.io/raphaelplee/transflow-core:main
+    image: ghcr.io/raphaelplee/transflow-core:${TRANSFLOW_TAG:-main}
     restart: always
     logging: *default-logging
     environment:

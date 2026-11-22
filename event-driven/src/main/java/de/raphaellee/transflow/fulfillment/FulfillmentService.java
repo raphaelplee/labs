@@ -2,6 +2,7 @@ package de.raphaellee.transflow.fulfillment;
 
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
@@ -20,12 +21,12 @@ public class FulfillmentService {
 
     @Transactional
     public FulfillmentResponse complete(UUID orderId, UUID subscriptionId) {
-        var record = new FulfillmentRecord(orderId, subscriptionId);
-        repository.save(record);
-
-        publisher.publishEvent(new FulfillmentCompletedEvent(
-            record.getId(), orderId, subscriptionId));
-
+        var existing = repository.findByOrderId(orderId);
+        if (existing.isPresent()) {
+            return toResponse(existing.get());
+        }
+        var record = repository.save(new FulfillmentRecord(orderId, subscriptionId));
+        publisher.publishEvent(new FulfillmentCompletedEvent(record.getId(), orderId, subscriptionId));
         return toResponse(record);
     }
 
@@ -37,8 +38,8 @@ public class FulfillmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<FulfillmentResponse> listAll() {
-        return repository.findAll().stream().map(this::toResponse).toList();
+    public List<FulfillmentResponse> list(Pageable pageable) {
+        return repository.findAll(pageable).map(this::toResponse).getContent();
     }
 
     private FulfillmentResponse toResponse(FulfillmentRecord r) {

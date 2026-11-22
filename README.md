@@ -16,6 +16,6 @@ Where things live — each fact is written once, in the file named here:
 - [`.github/workflows/`](.github/workflows/) — how a push reaches the server
 
 `raphaellee.my`, `raphaellee.eu` and their subdomains are redirects; the
-[Caddyfile](compose/Caddyfile) is the only place they are defined.
+[Caddyfile](compose/caddy/Caddyfile) is the only place they are defined.
 
 Everything removed on 2026-10-25 is at tag `archive/pre-trim-2026-10-25`.

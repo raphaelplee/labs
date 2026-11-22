@@ -1,12 +1,19 @@
+(hsts) {
+  header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}
+
 raphaellee.de, www.raphaellee.de {
+  import hsts
   redir https://transflow.raphaellee.de{uri} permanent
 }
 
 transflow.raphaellee.de {
+  import hsts
   reverse_proxy transflow-core:8080
 }
 
 temporal.raphaellee.de {
+  import hsts
   basic_auth {
     demo {env.CADDY_DEMO_PASSWORD_HASH}
   }
@@ -14,6 +21,7 @@ temporal.raphaellee.de {
 }
 
 kafka.raphaellee.de {
+  import hsts
   basic_auth {
     demo {env.CADDY_DEMO_PASSWORD_HASH}
   }
@@ -21,29 +29,36 @@ kafka.raphaellee.de {
 }
 
 dashboard.raphaellee.de {
+  import hsts
   respond "coming soon" 200
 }
 
 raphaellee.eu {
+  import hsts
   redir https://raphaellee.de{uri} permanent
 }
 
 transflow.raphaellee.eu {
+  import hsts
   redir https://transflow.raphaellee.de{uri} permanent
 }
 
 dashboard.raphaellee.eu {
+  import hsts
   redir https://dashboard.raphaellee.de{uri} permanent
 }
 
 raphaellee.my {
+  import hsts
   redir https://raphaellee.de{uri} permanent
 }
 
 transflow.raphaellee.my {
+  import hsts
   redir https://transflow.raphaellee.de{uri} permanent
 }
 
 dashboard.raphaellee.my {
+  import hsts
   redir https://dashboard.raphaellee.de{uri} permanent
 }

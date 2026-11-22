@@ -1,38 +1,29 @@
 package de.raphaellee.transflow.payment;
 
+import de.raphaellee.transflow.ConflictException;
+import de.raphaellee.transflow.TestcontainersConfiguration;
 import de.raphaellee.transflow.order.OrderService;
 import io.temporal.client.WorkflowClient;
-import java.util.UUID;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Import;
 import org.springframework.modulith.test.ApplicationModuleTest;
+import org.springframework.modulith.test.PublishedEvents;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
-import org.testcontainers.kafka.ConfluentKafkaContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.utility.DockerImageName;
+
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @ApplicationModuleTest(mode = ApplicationModuleTest.BootstrapMode.ALL_DEPENDENCIES)
-@Testcontainers
+@Import(TestcontainersConfiguration.class)
 @Tag("integration")
 @Transactional
 class PaymentModuleTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17.10");
-
-    @Container
-    @ServiceConnection
-    static ConfluentKafkaContainer kafka = new ConfluentKafkaContainer(
-        DockerImageName.parse("confluentinc/cp-kafka:7.9.7"));
 
     @MockitoBean
     WorkflowClient workflowClient;
@@ -64,8 +55,30 @@ class PaymentModuleTest {
     }
 
     @Test
+    void confirmPaymentTwice_returnsTheSamePaymentAndPublishesOnce(PublishedEvents events) {
+        var order = orderService.createOrder(UUID.randomUUID());
+
+        var first = paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
+        var second = paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
+
+        assertThat(second.paymentId()).isEqualTo(first.paymentId());
+        assertThat(events.ofType(PaymentProcessedEvent.class)).hasSize(1);
+    }
+
+    @Test
+    void failAfterConfirm_isRejected(PublishedEvents events) {
+        var order = orderService.createOrder(UUID.randomUUID());
+        paymentService.confirmPayment(order.orderId(), PaymentScenario.HAPPY_PATH);
+
+        assertThatThrownBy(() -> paymentService.failPayment(order.orderId()))
+            .isInstanceOf(ConflictException.class)
+            .hasMessageContaining("already PROCESSED");
+        assertThat(events.ofType(PaymentFailedEvent.class)).isEmpty();
+    }
+
+    @Test
     void confirmPayment_unknownOrder_throws() {
         assertThatThrownBy(() -> paymentService.confirmPayment(UUID.randomUUID(), PaymentScenario.HAPPY_PATH))
-            .isInstanceOf(jakarta.persistence.EntityNotFoundException.class);
+            .isInstanceOf(EntityNotFoundException.class);
     }
 }

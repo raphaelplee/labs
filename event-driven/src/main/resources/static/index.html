@@ -102,7 +102,7 @@
   .badge.FULFILLMENT_PROCESSING { background: var(--badge-fulfill-bg); color: var(--accent-yellow); border: 1px solid var(--badge-fulfill-bdr); }
   .badge.COMPLETED              { background: var(--state-done-green-bg); color: var(--accent-green); border: 1px solid var(--state-done-green); }
   .badge.PAYMENT_FAILED         { background: var(--badge-error-bg);   color: var(--accent-red);    border: 1px solid var(--badge-error-bdr); }
-  .badge.TIMED_OUT              { background: var(--badge-error-bg);   color: var(--accent-red);    border: 1px solid var(--badge-error-bdr); }
+  .badge.TIMED_OUT, .badge.PAYMENT_TIMED_OUT { background: var(--badge-error-bg);   color: var(--accent-red);    border: 1px solid var(--badge-error-bdr); }
   .steps { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px; }
   .step-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
   .step-dot.COMPLETED  { background: var(--accent-green); }
@@ -135,7 +135,6 @@
 
   <div class="trigger-panel">
 
-    <!-- Step 1 — Create Order -->
     <div class="step-group">
       <div class="step-header">
         <span class="step-num active" id="sn-1">1</span>
@@ -149,7 +148,6 @@
       <div class="hint" id="hint-1">Saga starts in AWAITING_PAYMENT once the Kafka consumer picks up order.created</div>
     </div>
 
-    <!-- Step 2 — Trigger Payment -->
     <div class="step-group">
       <div class="step-header">
         <span class="step-num" id="sn-2">2</span>
@@ -176,13 +174,12 @@
       <button class="btn btn-orange" id="btn-timeout" onclick="confirmPayment('FULFILLMENT_TIMEOUT')" disabled>
         <span class="btn-title">POST /api/payments/:orderId/confirm<span class="spinner">⏳</span></span>
         <span class="btn-label">Confirm (Fulfillment Timeout)</span>
-        <span class="btn-desc">scenario=FULFILLMENT_TIMEOUT → fulfillment sleeps 35s → saga times out at 30s</span>
+        <span class="btn-desc">scenario=FULFILLMENT_TIMEOUT → fulfillment is delayed 35s → saga times out at 30s</span>
       </button>
 
       <div class="hint" id="hint-2">Create an order first — the orderId will appear above these buttons</div>
     </div>
 
-    <!-- Step 3 — Fulfillment (automatic) -->
     <div class="step-group">
       <div class="step-header">
         <span class="step-num" id="sn-3">3</span>
@@ -195,18 +192,17 @@
       </div>
     </div>
 
-    <!-- Idempotency demo (standalone) -->
     <div class="step-group">
       <div class="step-header">
         <span class="step-num" style="font-size:11px">⇄</span>
-        <span class="step-title">Idempotency Demo</span>
+        <span class="step-title">Duplicate Order Demo</span>
       </div>
-      <button class="btn" id="btn-idem" onclick="testIdempotency()">
+      <button class="btn" id="btn-dup" onclick="testDuplicateOrder()">
         <span class="btn-title">POST /api/orders × 2 (parallel)<span class="spinner">⏳</span></span>
-        <span class="btn-label">Test Idempotency</span>
-        <span class="btn-desc">Same subscriptionId fired twice — one 201, one 409, only one saga starts</span>
+        <span class="btn-label">Send Two Identical Orders</span>
+        <span class="btn-desc">A new subscriptionId sent twice at once — expect one 201 and one 409, so only one saga starts</span>
       </button>
-      <div class="hint" id="hint-idem">Check the console for both response status codes</div>
+      <div class="hint" id="hint-dup">Shows both response status codes</div>
     </div>
 
   </div>
@@ -219,8 +215,6 @@
 </div>
 
 <script>
-const FIXED_IDEM_SUB = '018f1234-dead-7000-beef-000000000001';
-
 let activeOrder = null;
 
 async function createOrder() {
@@ -272,8 +266,8 @@ async function confirmPayment(scenario) {
     activeOrder = null;
 
     if (scenario === 'FULFILLMENT_TIMEOUT') {
-      setHint('hint-2', '✓ Payment confirmed with FULFILLMENT_TIMEOUT — fulfillment sleeps 35s', 'ok');
-      setHint('hint-3', 'Fulfillment consumer is sleeping 35s — saga will time out at 30s → TIMED_OUT');
+      setHint('hint-2', '✓ Payment confirmed with FULFILLMENT_TIMEOUT — fulfillment is delayed 35s', 'ok');
+      setHint('hint-3', 'Fulfillment is delayed 35s — saga will time out at 30s → TIMED_OUT');
     } else {
       setHint('hint-2', '✓ Payment confirmed — fulfillment starting automatically', 'ok');
       setHint('hint-3', 'Watch the saga card flip to FULFILLMENT_PROCESSING then COMPLETED');
@@ -309,21 +303,23 @@ async function failPayment() {
   }
 }
 
-async function testIdempotency() {
-  const btn = document.getElementById('btn-idem');
+async function testDuplicateOrder() {
+  const btn = document.getElementById('btn-dup');
   setBtnLoading(btn, true);
   try {
-    const body = JSON.stringify({ subscriptionId: FIXED_IDEM_SUB });
+    const body = JSON.stringify({ subscriptionId: crypto.randomUUID() });
     const headers = { 'Content-Type': 'application/json' };
     const [r1, r2] = await Promise.all([
       fetch('/api/orders', { method: 'POST', headers, body }),
       fetch('/api/orders', { method: 'POST', headers, body })
     ]);
     const statuses = [r1.status, r2.status].sort().join(' + ');
-    setHint('hint-idem', `Responses: ${statuses} — one 201 (created), one 409 (duplicate)`);
-    console.log('Idempotency:', r1.status, r2.status);
+    const expected = statuses === '201 + 409';
+    setHint('hint-dup', expected
+      ? `✓ Responses: ${statuses} — one created, one rejected as a duplicate`
+      : `✗ Responses: ${statuses} — expected 201 + 409`, expected ? 'ok' : 'err');
   } catch (err) {
-    setHint('hint-idem', '✗ ' + err.message, 'err');
+    setHint('hint-dup', '✗ ' + err.message, 'err');
   } finally {
     setBtnLoading(btn, false);
   }

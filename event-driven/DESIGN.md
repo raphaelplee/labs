@@ -3,7 +3,7 @@
 Design system of record for the `event-driven` dashboard (`src/main/resources/static/index.html`).
 Started during `/plan-design-review` on 2026-05-18, alongside the Weekend 3 Keycloak auth spec.
 
-**Verified against `index.html` on 2026-08-24.** Sections up to and including
+**Verified against `index.html` on 2026-11-22.** Sections up to and including
 *What Already Exists* describe the page as it ships. The Keycloak auth design was
 never implemented and is kept, clearly marked, under *Deferred Design* at the end.
 
@@ -39,7 +39,7 @@ Introduced as CSS custom properties during the step-by-step UI redesign (`54d000
   /* Accents */
   --accent-blue:   #58a6ff; /* Links, focus, monospace IDs */
   --accent-green:  #3fb950; /* Connected status, COMPLETED state */
-  --accent-red:    #f85149; /* Error status, PAYMENT_FAILED, TIMED_OUT */
+  --accent-red:    #f85149; /* Error status, PAYMENT_FAILED, TIMED_OUT, PAYMENT_TIMED_OUT */
   --accent-orange: #f0883e; /* Loading/running states */
   --accent-yellow: #e3b341; /* FULFILLMENT_PROCESSING state */
 
@@ -56,8 +56,8 @@ Introduced as CSS custom properties during the step-by-step UI redesign (`54d000
   --badge-await-bg:   #1f6feb22; /* AWAITING_PAYMENT background */
   --badge-fulfill-bg: #9a6700aa; /* FULFILLMENT_PROCESSING background */
   --badge-fulfill-bdr:#9a6700;   /* FULFILLMENT_PROCESSING border */
-  --badge-error-bg:   #da363322; /* PAYMENT_FAILED / TIMED_OUT background */
-  --badge-error-bdr:  #da3633;   /* PAYMENT_FAILED / TIMED_OUT border */
+  --badge-error-bg:   #da363322; /* PAYMENT_FAILED / TIMED_OUT / PAYMENT_TIMED_OUT background */
+  --badge-error-bdr:  #da3633;   /* PAYMENT_FAILED / TIMED_OUT / PAYMENT_TIMED_OUT border */
 }
 ```
 
@@ -151,7 +151,7 @@ Intent: communicates an in-progress async state without jarring motion. The 50% 
 | Saga card (active) | Blue border highlight for the in-flight saga         | `var(--interactive-blue)` border           |
 | Hint text         | 11px helper text below step groups, line-height 1.5  | `var(--text-dim)`                          |
 | Empty state       | Centred 13px text, 32px vertical padding, shown when no sagas exist | `var(--text-muted)`          |
-| Demo credential hint | Nav-link suffix rendered via `::after { content: attr(data-u) / attr(data-p) }` — 11px, CSS-generated so the credentials are not selectable DOM text and not crawled | `var(--text-dim)` |
+| Demo credential hint | Nav-link suffix rendered via `::after { content: attr(data-u) / attr(data-p) }` — 11px, CSS-generated so the credentials are not selectable text. They are still in the HTML source, which is why both admin UIs run read-only | `var(--text-dim)` |
 
 **Rule:** New UI elements must use an existing pattern or add a new row to this table.
 
@@ -182,7 +182,8 @@ never built. Verified on 2026-08-24: no `spring-boot-starter-oauth2-client` in
 `event-driven/pom.xml`, no `keycloak` service in `compose/docker-compose.yml`, no
 `auth.` host in `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
 markup in `index.html`. **The live demo is unauthenticated** — anyone can POST to the
-saga endpoints; only the Temporal and Kafka UIs are protected, by Caddy `basic_auth`.
+saga endpoints. The Temporal and Kafka UIs sit behind Caddy `basic_auth` with a published demo
+password, so both run read-only (`TEMPORAL_DISABLE_WRITE_ACTIONS`, `KAFKA_CLUSTERS_0_READONLY`).
 
 The design below is kept as the decision record for if and when auth is picked up.
 Nothing in it describes shipped behaviour.
@@ -301,9 +302,24 @@ Deferred deliberately; each is a decision, not an oversight.
   classpath path replaces the main configuration wholesale instead of merging, which silently
   drops the Kafka serializers, offset reset and schema settings. It broke the saga→fulfillment
   flow once already.
-- **`max.poll.interval.ms: 60000` is coupled to the 35 s sleep in `FulfillmentConsumer`.** Lower
-  one without the other and the consumer is evicted mid-poll; raise the sleep past the interval
-  and the same thing happens.
+- **`FULFILLMENT_TIMEOUT` waits on a timer thread, not the Kafka listener.** A sleep on the only
+  listener thread of a one-partition topic made every payment queued behind it time out too, and
+  two such records in one poll outlasted `max.poll.interval.ms`, so the batch was redelivered
+  forever. The delay (`saga.fulfillment-timeout-seconds` + 5 s) is lost if the app restarts during
+  it; the saga has timed out by then either way.
+- **The `fulfillment.completed` listener starts from `latest` when its group has no offset.** The
+  orchestration group subscribed to that topic on 2026-11-22. With `earliest` it would replay up to
+  seven days of events, and `signalWithStart` would start a saga for every one whose workflow
+  Temporal had already removed.
+- **Saga signals use `signalWithStart` with `REJECT_DUPLICATE`.** A signal that arrives before
+  `order.created` starts the saga instead of being lost; a late signal or a redelivered
+  `order.created` is discarded while Temporal still keeps the closed workflow. After the
+  namespace retention period it would start a new saga.
+- **`Workflow.getVersion("payment-timeout")` keeps old workflows replayable.** Workflows started
+  before the payment deadline existed have three arguments; the missing one replays as `0`, which
+  without the version branch would time out at once and fail replay. `SubscriptionSagaWorkflowReplayTest`
+  replays histories recorded from that code. Once no such workflow is open or retained, delete the
+  branch, that test and `src/test/resources/histories` together.
 - **`postgresql.version` is pinned to 42.7.11** because the Boot BOM ships 42.7.10, which predates
   the SCRAM-SHA-256 fix.
 - **The API queries every workflow's `getStatus()`.** A workflow that returns normally is
