@@ -42,8 +42,7 @@ raphaellee.my {
     basic_auth {
       demo {env.CADDY_DEMO_PASSWORD_HASH}
     }
-    uri strip_prefix /demo
-    reverse_proxy demo:8000
+    reverse_proxy demo:8080
   }
   handle {
     redir https://raphaellee.de{uri} permanent
