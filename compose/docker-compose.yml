@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   caddy:
-    image: caddy:2
+    image: caddy:2.11.9
     restart: always
     logging: *default-logging
     ports:
@@ -16,9 +16,10 @@ services:
     environment:
       CADDY_DEMO_PASSWORD_HASH: ${CADDY_DEMO_PASSWORD_HASH}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks: [default, demo]
     mem_limit: 64m
 
   postgres:
@@ -188,3 +189,7 @@ volumes:
   postgres_data:
   elasticsearch_data:
   kafka_data:
+
+networks:
+  demo:
+    name: labs_demo

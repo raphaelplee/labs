@@ -180,7 +180,7 @@ Specified on 2026-05-18 (spec archived at tag `archive/pre-trim-2026-10-25`, pat
 `docs/superpowers/specs/2026-05-18-weekend-3-design.md`),
 never built. Verified on 2026-08-24: no `spring-boot-starter-oauth2-client` in
 `event-driven/pom.xml`, no `keycloak` service in `compose/docker-compose.yml`, no
-`auth.` host in `compose/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
+`auth.` host in `compose/caddy/Caddyfile`, and no `/api/me`, sign-out, toast or 401-banner
 markup in `index.html`. **The live demo is unauthenticated** — anyone can POST to the
 saga endpoints; only the Temporal and Kafka UIs are protected, by Caddy `basic_auth`.
 
@@ -257,7 +257,7 @@ No custom "signed out" confirmation page.
 
 No change to nav links. They open in new tabs as before.
 - Swagger UI: covered by Spring Security (Keycloak session).
-- Temporal UI / Kafka UI: separate Caddy `basic_auth` (see `compose/Caddyfile`).
+- Temporal UI / Kafka UI: separate Caddy `basic_auth` (see `compose/caddy/Caddyfile`).
 
 ### Blurb Update
 

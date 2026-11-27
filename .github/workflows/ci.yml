@@ -22,6 +22,17 @@ jobs:
             ${{ runner.os }}-maven-
       - run: mvn test --no-transfer-progress
 
+  caddy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Validate Caddyfile
+        env:
+          CADDY_DEMO_PASSWORD_HASH: $2a$14$uYajCQcMLwYwz3Wrry5WDeF3jZjfcwUmJER2NsdQXElN/tQ.UseOS
+        run: >
+          docker compose -f compose/docker-compose.yml run --rm --no-deps -T caddy
+          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
   publish:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -60,7 +71,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   deploy:
-    needs: publish
+    needs: [publish, caddy]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     concurrency:
