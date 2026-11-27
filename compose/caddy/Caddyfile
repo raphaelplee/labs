@@ -37,13 +37,14 @@ dashboard.raphaellee.eu {
 }
 
 raphaellee.my {
-  redir /demo /demo/
-  handle /demo/* {
+  redir /demo /demo/{?query}
+  handle_path /demo/* {
     basic_auth {
       demo {env.CADDY_DEMO_PASSWORD_HASH}
     }
-    uri strip_prefix /demo
-    reverse_proxy demo:8000
+    reverse_proxy demo:8000 {
+      header_up -Authorization
+    }
   }
   handle {
     redir https://raphaellee.de{uri} permanent
