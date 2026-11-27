@@ -38,7 +38,7 @@ dashboard.raphaellee.eu {
 
 raphaellee.my {
   redir /demo /demo/{?query}
-  handle_path /demo/* {
+  handle /demo/* {
     basic_auth {
       demo {env.CADDY_DEMO_PASSWORD_HASH}
     }
