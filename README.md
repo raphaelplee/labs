@@ -15,7 +15,8 @@ Where things live — each fact is written once, in the file named here:
   [design record](event-driven/DESIGN.md), [ops notes and open items](event-driven/README.md#ops-notes)
 - [`.github/workflows/`](.github/workflows/) — how a push reaches the server
 
-`raphaellee.my`, `raphaellee.eu` and their subdomains are redirects; the
+`raphaellee.my`, `raphaellee.eu` and their subdomains are redirects, except
+`raphaellee.my/demo/`, which serves a separately deployed demo behind basic auth; the
 [Caddyfile](compose/Caddyfile) is the only place they are defined.
 
 Everything removed on 2026-10-25 is at tag `archive/pre-trim-2026-10-25`.

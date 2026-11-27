@@ -37,7 +37,17 @@ dashboard.raphaellee.eu {
 }
 
 raphaellee.my {
-  redir https://raphaellee.de{uri} permanent
+  redir /demo /demo/
+  handle /demo/* {
+    basic_auth {
+      demo {env.CADDY_DEMO_PASSWORD_HASH}
+    }
+    uri strip_prefix /demo
+    reverse_proxy demo:8000
+  }
+  handle {
+    redir https://raphaellee.de{uri} permanent
+  }
 }
 
 transflow.raphaellee.my {
