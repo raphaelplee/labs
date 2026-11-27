@@ -6,7 +6,7 @@ x-logging: &default-logging
 
 services:
   caddy:
-    image: caddy:2
+    image: caddy:2.11.9
     restart: always
     logging: *default-logging
     ports:

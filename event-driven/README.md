@@ -66,8 +66,11 @@ the whole file because `kafka-init` is a one-shot that exits 0, so the wait is s
 service; the healthcheck probes port 8080 with bash `/dev/tcp` because the JRE image has no curl
 or wget. Caddy is reloaded explicitly at the end — `up -d` never reloads a changed `Caddyfile`.
 Its directory is mounted, not the file: `git pull` writes a changed file as a new inode, which a
-single-file bind mount never sees (moby/moby#15793). CI validates the `Caddyfile` with a
-placeholder password hash, so a broken one fails before the deploy. A `deploy-production` concurrency
+single-file bind mount never sees (moby/moby#15793). CI validates the `Caddyfile` through the
+compose service, with a placeholder password hash, so a broken one fails before the deploy on the
+pinned image production runs. labs creates the `labs_demo` network, so it deploys before the demo
+in raphaelplee/labs-private; the demo joins it as `external` and serves `demo:8000`, and only Caddy
+shares it. The name is fixed, not `compose_*`, because another repo depends on it. A `deploy-production` concurrency
 group queues concurrent deploys instead of interleaving them. The remote script starts with
 `set -e`, so the first failing command fails the run — the action does not fail the step on a
 remote error by itself.

@@ -30,7 +30,7 @@ jobs:
         env:
           CADDY_DEMO_PASSWORD_HASH: $2a$14$uYajCQcMLwYwz3Wrry5WDeF3jZjfcwUmJER2NsdQXElN/tQ.UseOS
         run: >
-          docker run --rm -e CADDY_DEMO_PASSWORD_HASH -v "$PWD/compose/caddy:/etc/caddy:ro" caddy:2
+          docker compose -f compose/docker-compose.yml run --rm --no-deps -T caddy
           caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
   publish:
