@@ -37,10 +37,19 @@ dashboard.raphaellee.eu {
 }
 
 raphaellee.my {
+  log demo {
+    output file /var/log/caddy/demo.log {
+      roll_at 00:00
+      roll_keep_for 7d
+    }
+    format json {
+      time_format iso8601
+    }
+  }
   redir /demo /demo/{?query}
   handle_path /demo/* {
     basic_auth {
-      demo {env.CADDY_DEMO_PASSWORD_HASH}
+      import demo-users/*
     }
     reverse_proxy demo:8000 {
       header_up -Authorization
@@ -49,6 +58,7 @@ raphaellee.my {
     }
   }
   handle {
+    log_skip
     redir https://raphaellee.de{uri} permanent
   }
 }
