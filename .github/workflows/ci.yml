@@ -29,9 +29,11 @@ jobs:
       - name: Validate Caddyfile
         env:
           CADDY_DEMO_PASSWORD_HASH: $2a$14$uYajCQcMLwYwz3Wrry5WDeF3jZjfcwUmJER2NsdQXElN/tQ.UseOS
-        run: >
-          docker compose -f compose/docker-compose.yml run --rm --no-deps -T caddy
-          caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+        run: |
+          mkdir -p compose/caddy/demo-users
+          printf '%s %s\n' ci "$CADDY_DEMO_PASSWORD_HASH" > compose/caddy/demo-users/ci
+          docker compose -f compose/docker-compose.yml run --rm --no-deps -T caddy \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
   publish:
     needs: build
@@ -94,6 +96,8 @@ jobs:
             set -e
             cd /opt/labs && git pull
             cd compose
+            docker compose run --rm --no-deps -T caddy \
+              caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
             docker compose pull transflow-core
             docker compose up -d
             docker compose up -d --wait --wait-timeout 180 transflow-core \

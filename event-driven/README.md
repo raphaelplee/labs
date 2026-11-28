@@ -49,30 +49,35 @@ with it and need about two minutes; Caddy is skipped.
 scoped to `read:packages`. The package must stay private: GitHub recreates it private after the
 next push if the entry is deleted.
 
-**Secrets** — `compose/.env` holds `POSTGRES_PASSWORD` and the Caddy password hash:
+**Secrets** — `compose/.env` holds `POSTGRES_PASSWORD` and the Caddy password hash for the
+shared `demo` login. Make a hash from `compose/` with:
 
 ```bash
-docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
+docker compose run --rm --no-deps caddy caddy hash-password
 ```
 
-**Demo logins** — `/demo/` takes one login per person, not the shared `demo` login. Each person
-is a file `compose/caddy/demo-users/<username>`, mode `0600`, holding `<username> <hash>`;
-the directory is gitignored. With no file, every request gets 401. From `compose/`:
-
-```bash
-docker compose exec caddy caddy hash-password
-```
+**`/demo/` logins** — `/demo/` takes one login per person, not the shared `demo` login. Each
+person is a file `compose/caddy/demo-users/<username>`, mode `0600`, holding `<username> <hash>`;
+the directory is gitignored and must hold nothing else, since Caddy imports every file in it,
+editor backups included. With no file, every request gets 401. From `compose/`, with a hash made
+as in **Secrets**:
 
 ```bash
 mkdir -p caddy/demo-users && install -m 600 /dev/null caddy/demo-users/<username>
 ```
 
-Write `<username> <hash>` into that file, then reload Caddy with the deploy's last command in
-[`ci.yml`](../.github/workflows/ci.yml). To end a login, delete the file and reload; it stops
-working at once. A duplicate username or malformed line fails the reload, and Caddy keeps the
-running config. Every `/demo` request, refused ones included, goes to
-`/var/log/caddy/demo.log` (volume `caddy_logs`) as JSON with `user_id`; Caddy redacts
-`Authorization` and `Cookie`, and rolls the file at 100 MB, keeping 10 for 90 days:
+```bash
+printf '%s %s\n' '<username>' '<hash>' > caddy/demo-users/<username>
+```
+
+Then reload Caddy with the deploy's last command in [`ci.yml`](../.github/workflows/ci.yml). To
+end a login, delete the file and reload; it stops working at once. A duplicate username or
+malformed line fails the reload and Caddy keeps the running config, but on its next start Caddy
+exits and every site goes down, so fix the file until the reload succeeds. Every `/demo` request,
+refused ones included, goes to `/var/log/caddy/demo.log` (volume `caddy_logs`) as JSON with
+`user_id`; Caddy redacts `Authorization` and `Cookie`. The file rolls daily at 00:00 UTC, and
+each rolled file is deleted 7 days later, enough to look into an incident while keeping IPs no
+longer than needed (GDPR Art. 5(1)(e)):
 
 ```bash
 docker compose exec caddy cat /var/log/caddy/demo.log
@@ -90,8 +95,9 @@ service; the healthcheck probes port 8080 with bash `/dev/tcp` because the JRE i
 or wget. Caddy is reloaded explicitly at the end — `up -d` never reloads a changed `Caddyfile`.
 Its directory is mounted, not the file: `git pull` writes a changed file as a new inode, which a
 single-file bind mount never sees (moby/moby#15793). CI validates the `Caddyfile` through the
-compose service, with a placeholder password hash, so a broken one fails before the deploy on the
-pinned image production runs. labs creates the `labs_demo` network, so it deploys before the demo
+compose service, with a placeholder password hash and user file, so a broken one fails before the
+deploy on the pinned image production runs. The deploy validates it again with the server's user
+files before `up -d`, which may restart Caddy. labs creates the `labs_demo` network, so it deploys before the demo
 in raphaelplee/labs-private; the demo joins it as `external` and serves `demo:8000`, and only Caddy
 shares it. Caddy strips `/demo` and sends `X-Forwarded-Prefix: /demo` and the signed-in user as
 `X-Remote-User`; only Caddy can set them, since only Caddy shares the network. The name is fixed, not `compose_*`, because another repo depends on it. A `deploy-production` concurrency

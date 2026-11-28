@@ -38,7 +38,10 @@ dashboard.raphaellee.eu {
 
 raphaellee.my {
   log demo {
-    output file /var/log/caddy/demo.log
+    output file /var/log/caddy/demo.log {
+      roll_at 00:00
+      roll_keep_for 7d
+    }
     format json {
       time_format iso8601
     }
