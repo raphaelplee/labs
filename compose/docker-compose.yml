@@ -19,6 +19,7 @@ services:
       - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
+      - caddy_logs:/var/log/caddy
     networks: [default, demo]
     mem_limit: 64m
 
@@ -186,6 +187,7 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  caddy_logs:
   postgres_data:
   elasticsearch_data:
   kafka_data:

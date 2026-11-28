@@ -4,6 +4,7 @@ target/
 
 # Secrets — never commit
 compose/.env
+compose/caddy/demo-users/
 *.env
 
 # OS / IDE

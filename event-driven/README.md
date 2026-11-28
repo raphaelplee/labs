@@ -55,6 +55,29 @@ next push if the entry is deleted.
 docker run --rm httpd:alpine htpasswd -nbBC 14 demo demo | cut -d: -f2
 ```
 
+**Demo logins** — `/demo/` takes one login per person, not the shared `demo` login. Each person
+is a file `compose/caddy/demo-users/<username>`, mode `0600`, holding `<username> <hash>`;
+the directory is gitignored. With no file, every request gets 401. From `compose/`:
+
+```bash
+docker compose exec caddy caddy hash-password
+```
+
+```bash
+mkdir -p caddy/demo-users && install -m 600 /dev/null caddy/demo-users/<username>
+```
+
+Write `<username> <hash>` into that file, then reload Caddy with the deploy's last command in
+[`ci.yml`](../.github/workflows/ci.yml). To end a login, delete the file and reload; it stops
+working at once. A duplicate username or malformed line fails the reload, and Caddy keeps the
+running config. Every `/demo` request, refused ones included, goes to
+`/var/log/caddy/demo.log` (volume `caddy_logs`) as JSON with `user_id`; Caddy redacts
+`Authorization` and `Cookie`, and rolls the file at 100 MB, keeping 10 for 90 days:
+
+```bash
+docker compose exec caddy cat /var/log/caddy/demo.log
+```
+
 **Adminer** — not routed by Caddy; reach it with `ssh -L 5050:adminer:8080 root@raphaellee.de`.
 
 **Memory** — `mem_limit` is a cgroup limit and the JVM still sizes its heap from host RAM, so
