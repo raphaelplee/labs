@@ -70,7 +70,8 @@ single-file bind mount never sees (moby/moby#15793). CI validates the `Caddyfile
 compose service, with a placeholder password hash, so a broken one fails before the deploy on the
 pinned image production runs. labs creates the `labs_demo` network, so it deploys before the demo
 in raphaelplee/labs-private; the demo joins it as `external` and serves `demo:8000`, and only Caddy
-shares it. The name is fixed, not `compose_*`, because another repo depends on it. A `deploy-production` concurrency
+shares it. Caddy strips `/demo` and sends `X-Forwarded-Prefix: /demo` and the signed-in user as
+`X-Remote-User`; only Caddy can set them, since only Caddy shares the network. The name is fixed, not `compose_*`, because another repo depends on it. A `deploy-production` concurrency
 group queues concurrent deploys instead of interleaving them. The remote script starts with
 `set -e`, so the first failing command fails the run — the action does not fail the step on a
 remote error by itself.

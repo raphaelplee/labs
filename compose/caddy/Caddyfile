@@ -44,6 +44,8 @@ raphaellee.my {
     }
     reverse_proxy demo:8000 {
       header_up -Authorization
+      header_up X-Forwarded-Prefix /demo
+      header_up X-Remote-User {http.auth.user.id}
     }
   }
   handle {
